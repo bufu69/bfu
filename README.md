@@ -9,6 +9,9 @@
 
 Opțional, dacă Excelul e publicat pe un server web, poți salva adresa lui în **Actualizare de pe server** (cu recitire automată la 30 s).
 
+## Scroll automat (afișare pe ecran / TV)
+Din bara de sus: **Scroll auto: ON/OFF** pornește sau oprește derularea, iar lista de lângă alege intervalul (15, 30 sau 45 sec). La fiecare pas pagina coboară la secțiunea următoare; la final revine sus. Cu bifa **tab-uri**, la final trece la tab-ul următor. Setările sunt ținute minte în browser.
+
 ## Ce citește din Excel
 | Foaie | Utilizare |
 |---|---|

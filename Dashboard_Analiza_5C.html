@@ -28,6 +28,10 @@ button.primary{background:var(--accent);color:#04121c;border-color:var(--accent)
 .check{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:12px;padding:0 4px;cursor:pointer}
 .check input{width:16px;height:16px;padding:0}
 .spacer{flex:1}
+.autoscroll{align-items:center;gap:4px}.autoscroll select{border:0;background:transparent;padding:6px 4px}
+#btnScroll.on{background:var(--accent);color:#04121c;font-weight:700}
+.scroll-progress{position:fixed;left:0;top:0;height:3px;background:var(--accent);z-index:60;width:0;transition:width .25s linear;display:none}
+body.autoscrolling .scroll-progress{display:block}
 .tabs{display:flex;gap:4px;margin:16px 0 0;overflow-x:auto;border-bottom:1px solid var(--line)}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--muted);padding:11px 14px;white-space:nowrap;font-weight:600}
 .tabs button.active{color:var(--text);border-bottom-color:var(--accent)}
@@ -130,6 +134,7 @@ tr.new td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 <div class="spacer"></div>
 <button id="btnReset" title="Resetează toate filtrele">Resetează</button>
 <button id="btnCsv" title="Exportă rândurile filtrate în CSV">Export CSV</button>
+<div class="seg autoscroll" role="group" aria-label="Scroll automat"><button id="btnScroll" title="Pornește / oprește derularea automată a paginii" aria-pressed="false">Scroll auto: OFF</button><select id="scrollSec" aria-label="Interval scroll" title="Timp între pași"><option value="15">15 sec</option><option value="30">30 sec</option><option value="45">45 sec</option></select><label class="check" title="La final de pagină trece la tab-ul următor"><input type="checkbox" id="scrollTabs">tab-uri</label></div>
 <button id="btnTheme" title="Temă luminoasă / întunecată">Temă</button>
 <button onclick="window.print()">Tipărire / PDF</button>
 </section>
@@ -232,6 +237,7 @@ tr.new td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 <div class="foot"><span id="footSrc">Sursă: Analiza 5C.xlsx</span><span>Dashboard local • fișierele încărcate sunt procesate doar în browser, fără transmiterea datelor în exterior</span></div>
 </main>
 
+<div class="scroll-progress" id="scrollProgress"></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true"><div class="box"><div class="panel-head" style="margin:0"><h2 id="mTitle"></h2><button id="mClose">Închide ✕</button></div><div id="mBody"></div></div></div>
 
 <script>
@@ -614,9 +620,47 @@ $('#autoRefresh').onchange=e=>store.set('dashboard5c_auto',e.target.checked?'1':
 setInterval(()=>{if($('#autoRefresh').checked&&store.get('dashboard5c_server_url'))loadServer(true)},30000);
 let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>Object.values(charts).forEach(c=>c.resize()),150)});
 
+/* ---------- scroll automat ---------- */
+const AS={on:false,sec:30,left:0,timer:null};
+function scrollTargets(){
+  const off=$('.toolbar').getBoundingClientRect().height+24,y=window.scrollY,maxY=document.documentElement.scrollHeight-innerHeight;
+  return $$('#tab-'+activeTab+' > *').filter(e=>e.offsetParent).map(e=>Math.min(maxY,Math.max(0,e.getBoundingClientRect().top+y-off)));
+}
+function scrollStep(){
+  if($('#modal').classList.contains('show'))return;
+  const y=window.scrollY,maxY=document.documentElement.scrollHeight-innerHeight;
+  if(maxY<=4||y>=maxY-4){
+    if($('#scrollTabs').checked){const tabs=$$('#tabs button').map(b=>b.dataset.tab);switchTab(tabs[(tabs.indexOf(activeTab)+1)%tabs.length])}
+    const start=$('#tabs').getBoundingClientRect().top+window.scrollY-$('.toolbar').getBoundingClientRect().height-24;
+    window.scrollTo({top:$('#scrollTabs').checked?Math.max(0,start):0,behavior:'smooth'});return;
+  }
+  // următoarea secțiune sub poziția curentă; dacă e mai înaltă decât ecranul, avansează cu un ecran
+  const next=scrollTargets().filter(t=>t>y+8).sort((a,b)=>a-b)[0];
+  const step=innerHeight-$('.toolbar').getBoundingClientRect().height-40;
+  window.scrollTo({top:next==null?maxY:Math.min(next,y+step),behavior:'smooth'});
+}
+function asTick(){
+  if($('#modal').classList.contains('show'))return;
+  AS.left-=1;if(AS.left<=0){scrollStep();AS.left=AS.sec}
+  $('#scrollProgress').style.width=((AS.sec-AS.left)/AS.sec*100)+'%';
+  $('#btnScroll').textContent=`Scroll auto: ON • ${AS.left}s`;
+}
+function setAutoScroll(on){
+  AS.on=on;clearInterval(AS.timer);AS.sec=+$('#scrollSec').value;AS.left=AS.sec;
+  const b=$('#btnScroll');b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);document.body.classList.toggle('autoscrolling',on);
+  b.textContent=on?`Scroll auto: ON • ${AS.left}s`:'Scroll auto: OFF';$('#scrollProgress').style.width='0';
+  if(on)AS.timer=setInterval(asTick,1000);
+  store.set('dashboard5c_autoscroll',on?'1':'0');
+}
+$('#btnScroll').onclick=()=>setAutoScroll(!AS.on);
+$('#scrollSec').onchange=()=>{store.set('dashboard5c_scroll_sec',$('#scrollSec').value);if(AS.on)setAutoScroll(true)};
+$('#scrollTabs').onchange=e=>store.set('dashboard5c_scroll_tabs',e.target.checked?'1':'0');
+
 /* ---------- pornire ---------- */
 (function init(){
   const th=store.get('dashboard5c_theme');if(th)document.documentElement.dataset.theme=th;
+  const ss=store.get('dashboard5c_scroll_sec');if(['15','30','45'].includes(ss))$('#scrollSec').value=ss;$('#scrollTabs').checked=store.get('dashboard5c_scroll_tabs')==='1';
+  if(store.get('dashboard5c_autoscroll')==='1')setTimeout(()=>setAutoScroll(true),800);
   const url=store.get('dashboard5c_server_url')||'';$('#serverUrl').value=url;$('#autoRefresh').checked=store.get('dashboard5c_auto')==='1';
   let saved=null;try{saved=JSON.parse(store.get(STORE)||'null')}catch(e){}
   const tab=store.get('dashboard5c_tab');if(tab&&$('#tab-'+tab))activeTab=tab;
