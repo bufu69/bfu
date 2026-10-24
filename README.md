@@ -9,6 +9,9 @@
 
 Opțional, dacă Excelul e publicat pe un server web, poți salva adresa lui în **Actualizare de pe server** (cu recitire automată la 30 s).
 
+## Toate graficele
+Tab-ul **Toate graficele** conține peste 70 de grafice generate din fișier, grupate pe secțiuni: evoluție în timp, status, componente și produse, arii, defecte și cauze, responsabili, timp până la prezentare, completarea datelor, registrul RNC lunar, istoric și organizare. Toate respectă filtrele din bara de sus; poți alege 2, 3 sau 4 coloane.
+
 ## Scroll automat (afișare pe ecran / TV)
 Din bara de sus: **Scroll auto: ON/OFF** pornește sau oprește derularea, iar lista de lângă alege intervalul (15, 30 sau 45 sec). La fiecare pas pagina coboară la secțiunea următoare; la final revine sus. Cu bifa **tab-uri**, la final trece la tab-ul următor. Setările sunt ținute minte în browser.
 
