@@ -138,7 +138,7 @@ tr.new td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 <div class="spacer"></div>
 <button id="btnReset" title="Resetează toate filtrele">Resetează</button>
 <button id="btnCsv" title="Exportă rândurile filtrate în CSV">Export CSV</button>
-<div class="seg autoscroll" role="group" aria-label="Scroll automat"><button id="btnScroll" title="Pornește / oprește derularea automată a paginii" aria-pressed="false">Scroll auto: OFF</button><select id="scrollSec" aria-label="Interval scroll" title="Timp între pași"><option value="15">15 sec</option><option value="30">30 sec</option><option value="45">45 sec</option></select><label class="check" title="La final de pagină trece la tab-ul următor"><input type="checkbox" id="scrollTabs">tab-uri</label></div>
+<div class="seg autoscroll" role="group" aria-label="Scroll automat"><button id="btnScroll" title="Pornește / oprește derularea automată a paginii" aria-pressed="false">Scroll auto: OFF</button><select id="scrollMode" aria-label="Mod scroll" title="Continuu = derulare lină în buclă; Pe pași = salt la secțiunea următoare"><option value="cont">Continuu</option><option value="step">Pe pași</option></select><select id="scrollSec" aria-label="Viteză / interval scroll"><option value="15">15 sec</option><option value="30">30 sec</option><option value="45">45 sec</option></select><label class="check" title="La final de pagină trece la tab-ul următor"><input type="checkbox" id="scrollTabs">tab-uri</label></div>
 <button id="btnTheme" title="Temă luminoasă / întunecată">Temă</button>
 <button onclick="window.print()">Tipărire / PDF</button>
 </section>
@@ -779,7 +779,7 @@ setInterval(()=>{if($('#autoRefresh').checked&&store.get('dashboard5c_server_url
 let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>Object.values(charts).forEach(c=>c.resize()),150)});
 
 /* ---------- scroll automat ---------- */
-const AS={on:false,sec:30,left:0,timer:null};
+const AS={on:false,mode:'cont',sec:30,left:0,timer:null,raf:0,pos:0,last:0,pauseUntil:0,atEnd:false};
 function scrollTargets(){
   const off=$('.toolbar').getBoundingClientRect().height+24,y=window.scrollY,maxY=document.documentElement.scrollHeight-innerHeight;
   return $$('#tab-'+activeTab+' > *, #tab-'+activeTab+' .gal-sec').filter(e=>e.offsetParent).map(e=>Math.min(maxY,Math.max(0,e.getBoundingClientRect().top+y-off)));
@@ -790,7 +790,7 @@ function scrollStep(){
   if(maxY<=4||y>=maxY-4){
     if($('#scrollTabs').checked){const tabs=$$('#tabs button').map(b=>b.dataset.tab);switchTab(tabs[(tabs.indexOf(activeTab)+1)%tabs.length])}
     const start=$('#tabs').getBoundingClientRect().top+window.scrollY-$('.toolbar').getBoundingClientRect().height-24;
-    window.scrollTo({top:$('#scrollTabs').checked?Math.max(0,start):0,behavior:'smooth'});return;
+    window.scrollTo({top:$('#scrollTabs').checked?Math.max(0,start):0,behavior:'smooth'});return true;
   }
   // următoarea secțiune sub poziția curentă; dacă e mai înaltă decât ecranul, avansează cu un ecran
   const next=scrollTargets().filter(t=>t>y+8).sort((a,b)=>a-b)[0];
@@ -803,21 +803,39 @@ function asTick(){
   $('#scrollProgress').style.width=((AS.sec-AS.left)/AS.sec*100)+'%';
   $('#btnScroll').textContent=`Scroll auto: ON • ${AS.left}s`;
 }
+// mod continuu: derulare lină în jos, pauză la final, revenire sus și reluare (loop)
+function contFrame(t){
+  if(!AS.on||AS.mode!=='cont')return;
+  AS.raf=requestAnimationFrame(contFrame);
+  const dt=AS.last?Math.min(100,t-AS.last):0;AS.last=t;
+  if($('#modal').classList.contains('show')||t<AS.pauseUntil){AS.pos=window.scrollY;return}
+  const maxY=Math.max(0,document.documentElement.scrollHeight-innerHeight);
+  if(Math.abs(window.scrollY-AS.pos)>3)AS.pos=window.scrollY; // derulare manuală: continuă de unde a rămas utilizatorul
+  if(AS.pos>=maxY-1){
+    if(!AS.atEnd){AS.atEnd=true;AS.pauseUntil=t+4000;return} // pauză 4 s la final de pagină
+    AS.atEnd=false;scrollStep();AS.pauseUntil=t+3000;return;   // înapoi sus (sau tab-ul următor), pauză 3 s
+  }
+  const speed=(innerHeight-$('.toolbar').getBoundingClientRect().height-40)/AS.sec;
+  AS.pos=Math.min(maxY,AS.pos+speed*dt/1000);window.scrollTo(0,AS.pos);
+  $('#scrollProgress').style.width=(maxY?AS.pos/maxY*100:100)+'%';
+}
+function scrollLabels(){const c=AS.mode==='cont';[...$('#scrollSec').options].forEach(o=>o.textContent=o.value+(c?' sec / ecran':' sec / pas'));$('#scrollSec').title=c?'Timpul în care este parcurs un ecran':'Timp între pași'}
 function setAutoScroll(on){
-  AS.on=on;clearInterval(AS.timer);AS.sec=+$('#scrollSec').value;AS.left=AS.sec;
+  AS.on=on;clearInterval(AS.timer);cancelAnimationFrame(AS.raf);AS.sec=+$('#scrollSec').value;AS.left=AS.sec;AS.mode=$('#scrollMode').value;AS.last=0;AS.atEnd=false;AS.pos=window.scrollY;AS.pauseUntil=0;
   const b=$('#btnScroll');b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);document.body.classList.toggle('autoscrolling',on);
-  b.textContent=on?`Scroll auto: ON • ${AS.left}s`:'Scroll auto: OFF';$('#scrollProgress').style.width='0';
-  if(on)AS.timer=setInterval(asTick,1000);
+  b.textContent=on?(AS.mode==='cont'?'Scroll auto: ON':`Scroll auto: ON • ${AS.left}s`):'Scroll auto: OFF';$('#scrollProgress').style.width='0';
+  if(on){if(AS.mode==='cont')AS.raf=requestAnimationFrame(contFrame);else AS.timer=setInterval(asTick,1000)}
   store.set('dashboard5c_autoscroll',on?'1':'0');
 }
 $('#btnScroll').onclick=()=>setAutoScroll(!AS.on);
 $('#scrollSec').onchange=()=>{store.set('dashboard5c_scroll_sec',$('#scrollSec').value);if(AS.on)setAutoScroll(true)};
+$('#scrollMode').onchange=()=>{AS.mode=$('#scrollMode').value;store.set('dashboard5c_scroll_mode',AS.mode);scrollLabels();if(AS.on)setAutoScroll(true)};
 $('#scrollTabs').onchange=e=>store.set('dashboard5c_scroll_tabs',e.target.checked?'1':'0');
 
 /* ---------- pornire ---------- */
 (function init(){
   const th=store.get('dashboard5c_theme');if(th)document.documentElement.dataset.theme=th;
-  const ss=store.get('dashboard5c_scroll_sec');if(['15','30','45'].includes(ss))$('#scrollSec').value=ss;$('#scrollTabs').checked=store.get('dashboard5c_scroll_tabs')==='1';
+  const ss=store.get('dashboard5c_scroll_sec');if(['15','30','45'].includes(ss))$('#scrollSec').value=ss;$('#scrollTabs').checked=store.get('dashboard5c_scroll_tabs')==='1';const sm=store.get('dashboard5c_scroll_mode');if(sm==='step'||sm==='cont'){$('#scrollMode').value=sm;AS.mode=sm}scrollLabels();
   if(store.get('dashboard5c_autoscroll')==='1')setTimeout(()=>setAutoScroll(true),800);
   const url=store.get('dashboard5c_server_url')||'';$('#serverUrl').value=url;$('#autoRefresh').checked=store.get('dashboard5c_auto')==='1';
   let saved=null;try{saved=JSON.parse(store.get(STORE)||'null')}catch(e){}
