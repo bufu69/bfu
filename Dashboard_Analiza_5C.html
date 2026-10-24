@@ -34,6 +34,7 @@ button.primary{background:var(--accent);color:#04121c;border-color:var(--accent)
 body.autoscrolling .scroll-progress{display:block}
 .tabs{display:flex;gap:4px;margin:16px 0 0;overflow-x:auto;border-bottom:1px solid var(--line)}
 .tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--muted);padding:11px 14px;white-space:nowrap;font-weight:600}
+.toolbar button.on{background:var(--accent);color:#04121c;font-weight:700}
 .tabs button.active{color:var(--text);border-bottom-color:var(--accent)}
 .tabs .count{display:inline-block;margin-left:6px;font-size:10px;padding:2px 6px;border-radius:99px;background:var(--panel2);color:var(--muted)}
 .tabs .count:empty{display:none}
@@ -120,6 +121,24 @@ tr.new td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .muted{color:var(--muted)}
 @media(max-width:1100px){.gal{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis{grid-template-columns:repeat(2,1fr)}.grid,.grid.even,.grid.three,.update{grid-template-columns:1fr}.top{flex-direction:column}.badges{align-items:flex-start}.component-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.gal{grid-template-columns:1fr}.gcard.tall{grid-row:auto}.shell{padding:16px}.kpis{grid-template-columns:1fr}.kv{grid-template-columns:1fr}.spacer{display:none}.toolbar{position:static}.toolbar>*{flex:1 1 140px}input[type=search],input[type=url]{min-width:0;width:100%}.status-row{grid-template-columns:90px 1fr 50px}}
+/* mod ecran complet: doar conținutul cu grafice, pe toată suprafața */
+body.kiosk .top,body.kiosk .toolbar,body.kiosk .update,body.kiosk #changes,body.kiosk .tabs,body.kiosk .foot,body.kiosk #tab-gallery>.panel:first-child{display:none!important}
+body.kiosk .shell{max-width:none;padding:12px 16px}
+body.kiosk .kpis{margin:0 0 12px;gap:12px}
+body.kiosk .grid{margin-top:12px;gap:12px}
+body.kiosk .chart-box{height:calc(50vh - 92px)}
+body.kiosk .chart-box.tall{height:calc(72vh - 92px)}
+body.kiosk .chart-box.short{height:calc(40vh - 92px)}
+body.kiosk .gal{gap:12px}
+body.kiosk .gcard .chart-box{height:calc(50vh - 98px)}
+body.kiosk .gcard.tall .chart-box{height:calc(100vh - 160px)}
+body.kiosk .gal-sec .sec-title{margin:14px 0 8px}
+body.kiosk .gal-sec:first-of-type .sec-title{margin-top:0}
+body.kiosk .table-wrap{max-height:calc(100vh - 120px)}
+#kioskBar{display:none;position:fixed;right:14px;bottom:14px;z-index:40;gap:8px;align-items:center;padding:7px 8px 7px 14px;border-radius:999px;background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line2);box-shadow:var(--shadow);font-size:12px;color:var(--soft);opacity:.45;transition:opacity .2s}
+#kioskBar:hover,#kioskBar:focus-within{opacity:1}
+#kioskBar button{padding:6px 10px;font-size:12px}
+body.kiosk #kioskBar{display:flex}
 @media print{body{background:#fff;color:#111}.shell{max-width:none;padding:10px}.toolbar,.update,.tabs,.no-print{display:none!important}.card,.panel{box-shadow:none;background:#fff;border:1px solid #ccd5e0;break-inside:avoid}.table-wrap{max-height:none;overflow:visible}}
 </style></head><body><main class="shell">
 <header class="top"><div><div class="eyebrow">Operational Excellence • 5C</div><h1>Dashboard Analiză 5C</h1><div class="subtitle">Evoluție săptămânală și lunară, progres prezentare/finalizare, impact pe inele și role, defecte, cauze, responsabili și calitatea datelor</div></div>
@@ -139,6 +158,7 @@ tr.new td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 <button id="btnReset" title="Resetează toate filtrele">Resetează</button>
 <button id="btnCsv" title="Exportă rândurile filtrate în CSV">Export CSV</button>
 <div class="seg autoscroll" role="group" aria-label="Scroll automat"><button id="btnScroll" title="Pornește / oprește derularea automată a paginii" aria-pressed="false">Scroll auto: OFF</button><select id="scrollMode" aria-label="Mod scroll" title="Continuu = derulare lină în buclă; Pe pași = salt la secțiunea următoare"><option value="cont">Continuu</option><option value="step">Pe pași</option></select><select id="scrollSec" aria-label="Viteză / interval scroll"><option value="15">15 sec</option><option value="30">30 sec</option><option value="45">45 sec</option></select><label class="check" title="La final de pagină trece la tab-ul următor"><input type="checkbox" id="scrollTabs">tab-uri</label></div>
+<button id="btnKiosk" title="Graficele ocupă tot ecranul (ascunde antetul, filtrele și meniurile)">Ecran complet</button>
 <button id="btnTheme" title="Temă luminoasă / întunecată">Temă</button>
 <button onclick="window.print()">Tipărire / PDF</button>
 </section>
@@ -249,6 +269,7 @@ tr.new td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 </main>
 
 <div class="scroll-progress" id="scrollProgress"></div>
+<div id="kioskBar" aria-label="Control ecran complet"><span id="kioskLabel"></span><button id="kioskPrev" title="Tab-ul anterior">‹</button><button id="kioskNext" title="Tab-ul următor">›</button><button id="kioskScroll"></button><button id="kioskExit" title="Ieșire din ecran complet (Esc)">Ieșire ✕</button></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true"><div class="box"><div class="panel-head" style="margin:0"><h2 id="mTitle"></h2><button id="mClose">Închide ✕</button></div><div id="mBody"></div></div></div>
 
 <script>
@@ -748,7 +769,7 @@ function exportCsv(){
 }
 
 /* ---------- evenimente ---------- */
-function switchTab(t){activeTab=t;$$('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));$$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+t));store.set('dashboard5c_tab',t);render()}
+function switchTab(t){activeTab=t;if(document.body.classList.contains('kiosk'))setTimeout(kioskLabel);$$('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));$$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+t));store.set('dashboard5c_tab',t);render()}
 $$('#tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 ['#fPeriod','#fArea','#fComponent','#fFamily','#fStatus','#fPerson'].forEach(id=>$(id).addEventListener('change',render));
 let st;$('#fSearch').addEventListener('input',()=>{clearTimeout(st);st=setTimeout(render,200)});
@@ -790,7 +811,7 @@ function scrollStep(){
   if(maxY<=4||y>=maxY-4){
     if($('#scrollTabs').checked){const tabs=$$('#tabs button').map(b=>b.dataset.tab);switchTab(tabs[(tabs.indexOf(activeTab)+1)%tabs.length])}
     const start=$('#tabs').getBoundingClientRect().top+window.scrollY-$('.toolbar').getBoundingClientRect().height-24;
-    window.scrollTo({top:$('#scrollTabs').checked?Math.max(0,start):0,behavior:'smooth'});return true;
+    window.scrollTo({top:$('#scrollTabs').checked&&!document.body.classList.contains('kiosk')?Math.max(0,start):0,behavior:'smooth'});return true;
   }
   // următoarea secțiune sub poziția curentă; dacă e mai înaltă decât ecranul, avansează cu un ecran
   const next=scrollTargets().filter(t=>t>y+8).sort((a,b)=>a-b)[0];
@@ -831,6 +852,22 @@ $('#btnScroll').onclick=()=>setAutoScroll(!AS.on);
 $('#scrollSec').onchange=()=>{store.set('dashboard5c_scroll_sec',$('#scrollSec').value);if(AS.on)setAutoScroll(true)};
 $('#scrollMode').onchange=()=>{AS.mode=$('#scrollMode').value;store.set('dashboard5c_scroll_mode',AS.mode);scrollLabels();if(AS.on)setAutoScroll(true)};
 $('#scrollTabs').onchange=e=>store.set('dashboard5c_scroll_tabs',e.target.checked?'1':'0');
+
+/* ---------- ecran complet ---------- */
+function kioskLabel(){const b=$('#tabs button[data-tab="'+activeTab+'"]');$('#kioskLabel').textContent=(b?b.firstChild.textContent:'')+' • '+($('#fPeriod').value==='all'?'toate perioadele':$('#fPeriod').selectedOptions[0].text);$('#kioskScroll').textContent=AS.on?'Scroll: ON':'Scroll: OFF'}
+function setKiosk(on){
+  document.body.classList.toggle('kiosk',on);$('#btnKiosk').classList.toggle('on',on);
+  if(on){const el=document.documentElement;if(!document.fullscreenElement&&el.requestFullscreen)el.requestFullscreen().catch(()=>{});kioskLabel();window.scrollTo(0,0)}
+  else if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});
+  setTimeout(()=>Object.values(charts).forEach(c=>c.resize()),250);
+}
+$('#btnKiosk').onclick=()=>setKiosk(!document.body.classList.contains('kiosk'));
+$('#kioskExit').onclick=()=>setKiosk(false);
+$('#kioskScroll').onclick=()=>{setAutoScroll(!AS.on);kioskLabel()};
+const stepTab=d=>{const t=$$('#tabs button').map(b=>b.dataset.tab);switchTab(t[(t.indexOf(activeTab)+d+t.length)%t.length]);window.scrollTo(0,0);kioskLabel()};
+$('#kioskPrev').onclick=()=>stepTab(-1);$('#kioskNext').onclick=()=>stepTab(1);
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.body.classList.contains('kiosk'))setKiosk(false)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('kiosk')&&!$('#modal').classList.contains('show'))setKiosk(false)});
 
 /* ---------- pornire ---------- */
 (function init(){

@@ -12,6 +12,9 @@ Opțional, dacă Excelul e publicat pe un server web, poți salva adresa lui în
 ## Toate graficele
 Tab-ul **Toate graficele** conține peste 70 de grafice generate din fișier, grupate pe secțiuni: evoluție în timp, status, componente și produse, arii, defecte și cauze, responsabili, timp până la prezentare, completarea datelor, registrul RNC lunar, istoric și organizare. Toate respectă filtrele din bara de sus; poți alege 2, 3 sau 4 coloane.
 
+## Ecran complet
+Butonul **Ecran complet** pune browserul pe tot ecranul și ascunde antetul, filtrele, panourile de actualizare și meniurile: rămân doar graficele, mărite pe toată suprafața (2 rânduri de grafice pe ecran). În colțul din dreapta-jos rămâne o bară discretă cu tab-ul curent, butoane ‹ › pentru tab-ul anterior/următor, pornire/oprire scroll și **Ieșire** (sau tasta Esc). Se combină cu scroll-ul automat continuu pentru afișare pe TV.
+
 ## Scroll automat (afișare pe ecran / TV)
 Din bara de sus: **Scroll auto: ON/OFF**, apoi modul și viteza:
 - **Continuu** (implicit): pagina coboară lin, fără oprire; la final face o pauză de 4 s, revine sus și o ia de la capăt, în buclă. Viteza: 15, 30 sau 45 sec pentru parcurgerea unui ecran.
