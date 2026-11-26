@@ -174,14 +174,30 @@ tbody tr.selectat { background: var(--accent-soft); }
 .nota-blocat { background: var(--panel-2); border: 1px dashed var(--line-2); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--ink-2); margin-bottom: 12px; }
 .meta { font-size: 12px; color: var(--ink-3); margin-bottom: 12px; }
 
-/* ---------- dialog cod ---------- */
+/* ---------- dialoguri ---------- */
 dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); padding: 0; width: min(380px, calc(100% - 32px)); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
 dialog::backdrop { background: rgba(10,14,20,.4); }
 dialog form { padding: 18px; }
 dialog h2 { margin: 0 0 4px; font-size: 16px; }
 dialog p { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; }
-dialog input { width: 100%; height: 38px; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 10px; background: var(--panel); font-size: 16px; letter-spacing: .15em; }
+dialog .camp-dlg input { width: 100%; height: 38px; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 10px; background: var(--panel); }
 dialog .rand-btn { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+dialog.lat { width: min(760px, calc(100% - 32px)); }
+.dlg-in { padding: 18px; }
+.camp-dlg { margin-bottom: 10px; }
+.camp-dlg label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+dialog .camp-dlg input { letter-spacing: normal; font-size: 15px; }
+.bifa { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); margin: 4px 0 0; cursor: pointer; }
+.bifa input { width: 16px; height: 16px; margin: 0; }
+.tabel-u { border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+.tabel-u table td, .tabel-u table th { padding: 7px 9px; border-bottom: 1px solid var(--line); font-size: 13px; text-align: left; white-space: nowrap; }
+.tabel-u table th { background: var(--panel-2); color: var(--ink-3); font-size: 12px; }
+.tabel-u table tr:last-child td { border-bottom: 0; }
+.tabel-u .btn { margin: 2px 4px 2px 0; }
+.tabel-u td:last-child { white-space: normal; min-width: 250px; }
+.dlg-in form { padding: 0; }
+.sub-dlg { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin: 18px 0 8px; }
+.meniu-user { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 8px; font-size: 13px; z-index: 50; display: none; max-width: calc(100% - 32px); }
 .subsol { text-align: center; color: var(--ink-3); font-size: 12px; margin-top: 14px; }
 .ascuns { display: none !important; }
@@ -269,17 +285,56 @@ dialog .rand-btn { display: flex; justify-content: flex-end; gap: 8px; margin-to
   <footer id="pSubsol"></footer>
 </aside>
 
-<dialog id="dlgCod">
-  <form method="dialog" id="formCod">
-    <h2>Autentificare editor</h2>
-    <p>Introdu codul personal ca să poți adăuga și modifica acțiuni. Rămâi autentificat până închizi browserul.</p>
-    <input id="inCod" type="password" autocomplete="off" inputmode="numeric" placeholder="cod personal">
-    <div class="mesaj" id="codMesaj"></div>
+<dialog id="dlgLogin">
+  <form id="formLogin" autocomplete="on">
+    <h2 id="lgTitlu">Autentificare</h2>
+    <p id="lgText">Intră cu utilizatorul și parola ta ca să poți adăuga și modifica acțiuni.</p>
+    <div class="camp-dlg ascuns" id="lgRandNume"><label for="lgNume">Nume afișat</label><input id="lgNume" autocomplete="name" placeholder="ex. Ion Popescu"></div>
+    <div class="camp-dlg"><label for="lgUser">Utilizator</label><input id="lgUser" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="ex. ion.popescu"></div>
+    <div class="camp-dlg"><label for="lgParola">Parolă</label><input id="lgParola" type="password" autocomplete="current-password"></div>
+    <div class="camp-dlg ascuns" id="lgRandParola2"><label for="lgParola2">Repetă parola</label><input id="lgParola2" type="password" autocomplete="new-password"></div>
+    <label class="bifa" id="lgRandTine"><input type="checkbox" id="lgTine" checked> Ține-mă minte pe acest calculator (autentificare automată)</label>
+    <div class="mesaj" id="lgMesaj"></div>
     <div class="rand-btn">
-      <button class="btn" value="anulat" formnovalidate>Anulează</button>
-      <button class="btn primar" id="btnCodOk" value="ok">Intră</button>
+      <button type="button" class="btn" id="lgAnuleaza">Anulează</button>
+      <button type="submit" class="btn primar" id="lgOk">Intră</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="dlgParola">
+  <form id="formParola">
+    <h2>Schimbă parola</h2>
+    <p>După schimbare vei fi delogat de pe celelalte calculatoare.</p>
+    <input type="text" autocomplete="username" class="ascuns" id="pzUser">
+    <div class="camp-dlg"><label for="pzVeche">Parola actuală</label><input id="pzVeche" type="password" autocomplete="current-password"></div>
+    <div class="camp-dlg"><label for="pzNoua">Parola nouă (minim 6 caractere)</label><input id="pzNoua" type="password" autocomplete="new-password"></div>
+    <div class="camp-dlg"><label for="pzNoua2">Repetă parola nouă</label><input id="pzNoua2" type="password" autocomplete="new-password"></div>
+    <div class="mesaj" id="pzMesaj"></div>
+    <div class="rand-btn">
+      <button type="button" class="btn" onclick="this.closest('dialog').close()">Anulează</button>
+      <button type="submit" class="btn primar">Schimbă parola</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgUtilizatori" class="lat">
+  <div class="dlg-in">
+    <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Utilizatori</h2>
+      <button class="inchide" onclick="this.closest('dialog').close()" aria-label="Închide"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p>Toți utilizatorii activi pot adăuga și modifica acțiuni. Administratorii pot gestiona și utilizatorii.</p>
+    <div class="tabel-u"><table id="tblUtil"></table></div>
+    <h3 class="sub-dlg">Utilizator nou</h3>
+    <form id="formUtilNou" class="formular" autocomplete="off">
+      <div class="camp"><label>Utilizator (pentru logare)</label><input id="unUser" placeholder="ex. ana.ionescu" autocapitalize="off" spellcheck="false"></div>
+      <div class="camp"><label>Nume afișat</label><input id="unNume" placeholder="ex. Ana Ionescu"></div>
+      <div class="camp"><label>Parolă inițială (minim 6)</label><input id="unParola" type="text" autocomplete="off"></div>
+      <div class="camp" style="display:flex;align-items:flex-end;gap:10px;justify-content:space-between">
+        <label class="bifa" style="margin:0 0 8px"><input type="checkbox" id="unAdmin"> Administrator</label>
+        <button class="btn primar" type="submit">Adaugă</button></div>
+    </form>
+    <div class="mesaj" id="unMesaj"></div>
+  </div>
 </dialog>
 
 <div class="toast" id="toast"></div>
@@ -307,9 +362,8 @@ const ORDINE_ST = { "Deschis": 0, "În lucru": 1, "Închis": 2 };
 const st = {
   actiuni: [], liste: {}, azi: null,
   sortare: { k: "termen", dir: 1 }, kpi: null, selectat: null,
-  editor: null,
+  editor: null, configurat: true,
 };
-try { st.editor = JSON.parse(sessionStorage.getItem("grEditor") || "null"); } catch (e) {}
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -326,11 +380,11 @@ function toast(t) {
 
 /* ---------- comunicare cu serverul ---------- */
 async function api(cale, date) {
-  const opt = date === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cod: st.editor?.cod, ...date }) };
-  const r = await fetch(cale, { cache: "no-store", ...opt });
+  const opt = date === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(date) };
+  const r = await fetch(cale, { cache: "no-store", credentials: "same-origin", ...opt });
   let j = {};
   try { j = await r.json(); } catch (e) {}
-  if (r.status === 403 && date !== undefined) { iesire(); }
+  if (r.status === 401 && date !== undefined && st.editor) { st.editor = null; zonaEditor(); }
   if (!r.ok || j.ok === false) throw new Error(j.eroare || "Eroare " + r.status);
   return j;
 }
@@ -465,37 +519,135 @@ $("antet").addEventListener("click", e => {
 ["fCauta", "fStadiu", "fPrioritate", "fMasina", "fResp"].forEach(id => $(id).addEventListener("input", deseneaza));
 $("corp").addEventListener("click", e => { const tr = e.target.closest("tr[data-nr]"); if (tr) deschideActiune(+tr.dataset.nr); });
 
-/* ---------- editor (cod personal) ---------- */
+/* ---------- autentificare (utilizator + parola) ---------- */
 function zonaEditor() {
-  $("zonaEditor").innerHTML = st.editor
-    ? `<span class="editor-chip" title="Autentificat ca editor">✓ ${esc(st.editor.nume)}<button id="btnIesire" title="Ieșire">✕</button></span>`
+  const u = st.editor;
+  $("zonaEditor").innerHTML = u
+    ? `<span class="meniu-user"><span class="editor-chip" title="Autentificat ca ${esc(u.utilizator)}">✓ ${esc(u.nume)}</span>
+       <button class="btn mic" id="btnParola" title="Schimbă parola">Parolă</button>
+       ${u.admin ? `<button class="btn mic" id="btnUtil">Utilizatori</button>` : ""}
+       <button class="btn mic" id="btnIesire">Ieșire</button></span>`
     : `<button class="btn" id="btnIntra">Autentificare</button>`;
 }
-function iesire() { st.editor = null; try { sessionStorage.removeItem("grEditor"); } catch (e) {} zonaEditor(); }
+async function verificaSesiune() {
+  try {
+    const j = await api("api/eu?t=" + Date.now());
+    st.editor = j.eu; st.configurat = j.configurat;
+  } catch (e) { st.editor = null; }
+  zonaEditor();
+  if (!st.configurat) cereLogin(true);
+}
+async function iesire() {
+  try { await api("api/logout", {}); } catch (e) {}
+  st.editor = null; zonaEditor(); toast("Te-ai deconectat.");
+  if (st.selectat !== null) deschideActiune(st.selectat);
+}
 $("zonaEditor").addEventListener("click", e => {
-  if (e.target.closest("#btnIesire")) { iesire(); toast("Te-ai deconectat."); if (st.selectat !== null) deschideActiune(st.selectat); }
-  if (e.target.closest("#btnIntra")) cereCod();
+  if (e.target.closest("#btnIesire")) iesire();
+  if (e.target.closest("#btnIntra")) cereLogin();
+  if (e.target.closest("#btnParola")) { $("formParola").reset(); $("pzUser").value = st.editor.utilizator; $("pzMesaj").className = "mesaj"; $("dlgParola").showModal(); $("pzVeche").focus(); }
+  if (e.target.closest("#btnUtil")) deschideUtilizatori();
 });
-function cereCod() {
+
+// initializare = true: nu exista inca niciun cont -> se creeaza administratorul
+function cereLogin(initializare = false) {
   return new Promise(rezolva => {
-    const dlg = $("dlgCod"); $("inCod").value = ""; $("codMesaj").className = "mesaj";
-    dlg.showModal(); $("inCod").focus();
-    const laClick = async (e) => {
-      e.preventDefault();
+    const dlg = $("dlgLogin");
+    if (dlg.open) dlg.close();
+    $("formLogin").reset(); $("lgTine").checked = true; $("lgMesaj").className = "mesaj";
+    $("lgTitlu").textContent = initializare ? "Bun venit! Creează contul de administrator" : "Autentificare";
+    $("lgText").textContent = initializare
+      ? "Încă nu există niciun cont. Primul cont creat este administrator și poate adăuga apoi ceilalți utilizatori."
+      : "Intră cu utilizatorul și parola ta ca să poți adăuga și modifica acțiuni.";
+    $("lgRandNume").classList.toggle("ascuns", !initializare);
+    $("lgRandParola2").classList.toggle("ascuns", !initializare);
+    $("lgRandTine").classList.toggle("ascuns", initializare);
+    $("lgParola").autocomplete = initializare ? "new-password" : "current-password";
+    $("lgOk").textContent = initializare ? "Creează contul" : "Intră";
+    $("lgAnuleaza").classList.toggle("ascuns", initializare);
+    dlg.showModal();
+    (initializare ? $("lgNume") : $("lgUser")).focus();
+    $("formLogin").onsubmit = async ev => {
+      ev.preventDefault();
+      const date = { utilizator: $("lgUser").value.trim(), parola: $("lgParola").value };
       try {
-        const r = await fetch("api/cod", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cod: $("inCod").value }) });
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.eroare || "Cod incorect.");
-        st.editor = { cod: $("inCod").value, nume: j.nume };
-        try { sessionStorage.setItem("grEditor", JSON.stringify(st.editor)); } catch (e2) {}
-        zonaEditor(); dlg.close("ok"); toast("Bun venit, " + j.nume + "!");
-      } catch (err) { $("codMesaj").textContent = err.message; $("codMesaj").className = "mesaj err"; }
+        if (initializare) {
+          if (date.parola !== $("lgParola2").value) throw new Error("Parolele nu coincid.");
+          date.nume = $("lgNume").value.trim();
+        } else date.tine_minte = $("lgTine").checked;
+        const j = await api(initializare ? "api/initializare" : "api/login", date);
+        st.editor = j.eu; st.configurat = true; zonaEditor();
+        dlg.close("ok");
+        toast(initializare ? "Cont creat. Ești administrator." : "Bun venit, " + j.eu.nume + "!");
+        if (st.selectat !== null) deschideActiune(st.selectat);
+      } catch (err) { $("lgMesaj").textContent = err.message; $("lgMesaj").className = "mesaj err"; }
     };
-    $("btnCodOk").onclick = laClick;
+    $("lgAnuleaza").onclick = () => dlg.close("anulat");
+    dlg.oncancel = e => { if (initializare) e.preventDefault(); };
     dlg.onclose = () => rezolva(!!st.editor);
   });
 }
-async function asiguraEditor() { return st.editor ? true : await cereCod(); }
+async function asiguraEditor() { return st.editor ? true : await cereLogin(); }
+
+$("formParola").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const m = $("pzMesaj");
+  try {
+    if ($("pzNoua").value !== $("pzNoua2").value) throw new Error("Parolele noi nu coincid.");
+    await api("api/parola", { parola_veche: $("pzVeche").value, parola_noua: $("pzNoua").value });
+    $("dlgParola").close(); toast("Parola a fost schimbată.");
+  } catch (e) { m.textContent = e.message; m.className = "mesaj err"; }
+});
+
+/* ---------- administrare utilizatori ---------- */
+function deseneazaUtilizatori(lista) {
+  $("tblUtil").innerHTML = `<tr><th>Utilizator</th><th>Nume</th><th>Rol</th><th>Stare</th><th>Ultima logare</th><th></th></tr>` +
+    lista.map(u => `<tr data-u="${esc(u.utilizator)}">
+      <td><b>${esc(u.utilizator)}</b></td><td>${esc(u.nume)}</td>
+      <td>${u.admin ? `<span class="badge b-lucru">Administrator</span>` : "Utilizator"}</td>
+      <td>${u.activ ? `<span class="badge b-inchis">Activ</span>` : `<span class="badge b-urgenta">Dezactivat</span>`}</td>
+      <td class="secundar">${u.ultima_logare ? ro(u.ultima_logare.slice(0, 10)) + " " + u.ultima_logare.slice(11, 16) : "—"}</td>
+      <td><button class="btn mic" data-a="parola">Parolă nouă</button><button class="btn mic" data-a="admin">${u.admin ? "Scoate admin" : "Fă admin"}</button><button class="btn mic" data-a="activ">${u.activ ? "Dezactivează" : "Activează"}</button>${u.utilizator.toLowerCase() === st.editor.utilizator.toLowerCase() ? "" : `<button class="btn mic pericol" data-a="sterge">Șterge</button>`}</td>
+    </tr>`).join("");
+  st.utilizatori = lista;
+}
+async function deschideUtilizatori() {
+  try {
+    const j = await api("api/utilizatori?t=" + Date.now());
+    deseneazaUtilizatori(j.utilizatori);
+    $("formUtilNou").reset(); $("unMesaj").className = "mesaj";
+    $("dlgUtilizatori").showModal();
+  } catch (e) { toast(e.message); }
+}
+$("tblUtil").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-a]"); if (!b) return;
+  const ut = b.closest("tr").dataset.u, u = st.utilizatori.find(x => x.utilizator === ut), m = $("unMesaj");
+  try {
+    let j;
+    if (b.dataset.a === "parola") {
+      const p = prompt(`Parola nouă pentru ${ut} (minim 6 caractere):`); if (!p) return;
+      j = await api(`api/utilizatori/${encodeURIComponent(ut)}/parola`, { parola: p });
+      m.textContent = `Parola pentru ${ut} a fost schimbată. Comunic-o utilizatorului.`;
+    } else if (b.dataset.a === "sterge") {
+      if (!confirm(`Ștergi utilizatorul ${ut}? Acțiunile și comentariile lui rămân.`)) return;
+      j = await api(`api/utilizatori/${encodeURIComponent(ut)}/sterge`, {});
+      m.textContent = `${ut} a fost șters.`;
+    } else {
+      j = await api(`api/utilizatori/${encodeURIComponent(ut)}`, b.dataset.a === "admin" ? { admin: !u.admin } : { activ: !u.activ });
+      m.textContent = "Salvat.";
+    }
+    m.className = "mesaj ok"; deseneazaUtilizatori(j.utilizatori);
+  } catch (err) { m.textContent = err.message; m.className = "mesaj err"; }
+});
+$("formUtilNou").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const m = $("unMesaj");
+  try {
+    const j = await api("api/utilizatori", { utilizator: $("unUser").value.trim(), nume: $("unNume").value.trim(), parola: $("unParola").value, admin: $("unAdmin").checked });
+    m.textContent = `Utilizatorul ${$("unUser").value.trim()} a fost creat.`; m.className = "mesaj ok";
+    $("formUtilNou").reset(); deseneazaUtilizatori(j.utilizatori);
+  } catch (err) { m.textContent = err.message; m.className = "mesaj err"; }
+});
 
 /* ---------- panou lateral ---------- */
 function deschidePanou() { $("panou").classList.add("deschis"); $("voal").classList.add("deschis"); $("panou").setAttribute("aria-hidden", "false"); }
@@ -505,7 +657,7 @@ function inchidePanou() {
 }
 $("pInchide").addEventListener("click", inchidePanou);
 $("voal").addEventListener("click", inchidePanou);
-document.addEventListener("keydown", e => { if (e.key === "Escape" && $("panou").classList.contains("deschis") && !$("dlgCod").open) inchidePanou(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("panou").classList.contains("deschis") && !document.querySelector("dialog[open]")) inchidePanou(); });
 
 function campuriFormular(a, blocat) {
   const dis = blocat ? "disabled" : "";
@@ -535,7 +687,7 @@ function actiuneNoua() {
   st.selectat = null;
   $("pTitlu").textContent = "Acțiune nouă";
   const implicit = { stadiu: "Deschis", prioritate: "Normală", termen: (() => { const d = new Date(st.azi + "T00:00:00"); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })() };
-  $("pContinut").innerHTML = (st.editor ? "" : `<div class="nota-blocat">Vei fi rugat să introduci codul personal la salvare.</div>`) +
+  $("pContinut").innerHTML = (st.editor ? "" : `<div class="nota-blocat">Vei fi rugat să te autentifici la salvare.</div>`) +
     campuriFormular(implicit, false) +
     `<div class="camp" style="margin-top:10px"><label>Comentariu (opțional)</label><textarea id="f_comentariu"></textarea></div><div class="mesaj" id="pMesaj"></div>`;
   $("pSubsol").innerHTML = `<button class="btn primar" id="pSalveaza">Salvează acțiunea</button><button class="btn" id="pAnuleaza">Anulează</button>`;
@@ -590,7 +742,7 @@ async function deschideActiune(nr) {
        ${a.stadiu !== "Închis" ? `<button class="btn" id="pInchideAct">✓ Închide acțiunea</button>` : `<button class="btn" id="pRedeschide">Redeschide</button>`}
        <span style="flex:1"></span><button class="btn pericol" id="pSterge">Șterge</button>`;
 
-  const reintra = async () => { if (await cereCod()) deschideActiune(nr); };
+  const reintra = async () => { if (await cereLogin()) deschideActiune(nr); };
   $("lnkIntra")?.addEventListener("click", e => { e.preventDefault(); reintra(); });
   $("pIntra")?.addEventListener("click", reintra);
   const salveaza = async (extra) => {
@@ -640,6 +792,7 @@ $("btnTema").addEventListener("click", () => {
 });
 
 zonaEditor();
+verificaSesiune();
 incarca();
 setInterval(() => { if (!$("panou").classList.contains("deschis")) incarca(); }, REFRESH_MS);
 </script>

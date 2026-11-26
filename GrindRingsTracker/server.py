@@ -6,7 +6,7 @@ Server independent pentru actiunile de la rectificarea inelelor (grind rings).
 Date intr-o baza SQLite proprie (grind_rings.db). Doar Python 3, fara pachete externe.
 
   python server.py                       porneste serverul
-  python server.py --editori             administrare editori (cod personal)
+  python server.py --utilizatori         administrare utilizatori (utilizator + parola)
   python server.py --import-excel F.xlsx importa actiuni din Excel
   python server.py --trimite-mail        trimite mailurile prin SMTP (mail.ini)
   python server.py --raport-mail         pregateste mailurile pentru Outlook (mail_out/)
@@ -197,8 +197,12 @@ CREATE TABLE IF NOT EXISTS istoric (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   nr INTEGER, operatie TEXT, autor TEXT, la TEXT, detalii TEXT
 );
-CREATE TABLE IF NOT EXISTS editori (
-  nume TEXT PRIMARY KEY, sare TEXT, hash TEXT, creat_la TEXT
+CREATE TABLE IF NOT EXISTS utilizatori (
+  utilizator TEXT PRIMARY KEY COLLATE NOCASE, nume TEXT, sare TEXT, hash TEXT,
+  admin INTEGER DEFAULT 0, activ INTEGER DEFAULT 1, creat_la TEXT, ultima_logare TEXT
+);
+CREATE TABLE IF NOT EXISTS sesiuni (
+  token_hash TEXT PRIMARY KEY, utilizator TEXT, creata_la TEXT, expira TEXT
 );
 CREATE TABLE IF NOT EXISTS liste (
   lista TEXT, valoare TEXT, PRIMARY KEY (lista, valoare)
@@ -230,75 +234,183 @@ def backup_zilnic():
             pass
 
 
-# =============================================================== editori
-def _hash(cod, sare):
-    return hashlib.pbkdf2_hmac("sha256", str(cod).encode(), bytes.fromhex(sare), 120_000).hex()
+# =============================================================== utilizatori si sesiuni
+SESIUNE_COOKIE = "gr_sesiune"
+SESIUNE_ZILE_TINE_MINTE = 180      # "Tine-ma minte": autentificare automata atatea zile
+SESIUNE_ORE_FARA = 12              # fara "Tine-ma minte": pana inchizi browserul (max 12 ore)
 
 
-def editor_dupa_cod(cod):
-    cod = str(cod or "").strip()
-    if not cod:
+def _hash(parola, sare):
+    return hashlib.pbkdf2_hmac("sha256", str(parola).encode(), bytes.fromhex(sare), 200_000).hex()
+
+
+def _valideaza(utilizator, parola=None):
+    utilizator = str(utilizator or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9._-]{2,40}", utilizator):
+        raise Eroare("Utilizatorul trebuie să aibă 2–40 caractere: litere, cifre, punct, minus sau _.")
+    if parola is not None and len(str(parola)) < 6:
+        raise Eroare("Parola trebuie să aibă cel puțin 6 caractere.")
+    return utilizator
+
+
+def numar_utilizatori():
+    with db() as c:
+        return c.execute("SELECT COUNT(*) FROM utilizatori").fetchone()[0]
+
+
+def lista_utilizatori():
+    with db() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT utilizator, nume, admin, activ, creat_la, ultima_logare FROM utilizatori ORDER BY utilizator")]
+
+
+def creeaza_utilizator(utilizator, nume, parola, admin=False):
+    utilizator = _valideaza(utilizator, parola)
+    nume = str(nume or "").strip() or utilizator
+    with db() as c:
+        if c.execute("SELECT 1 FROM utilizatori WHERE utilizator=?", (utilizator,)).fetchone():
+            raise Eroare(f"Utilizatorul „{utilizator}” există deja.")
+        sare = secrets.token_hex(16)
+        c.execute("INSERT INTO utilizatori(utilizator, nume, sare, hash, admin, activ, creat_la) VALUES (?,?,?,?,?,1,?)",
+                  (utilizator, nume, sare, _hash(parola, sare), 1 if admin else 0, acum()))
+    return utilizator
+
+
+def schimba_parola(utilizator, parola):
+    _valideaza(utilizator, parola)
+    sare = secrets.token_hex(16)
+    with db() as c:
+        n = c.execute("UPDATE utilizatori SET sare=?, hash=? WHERE utilizator=?", (sare, _hash(parola, sare), utilizator)).rowcount
+        c.execute("DELETE FROM sesiuni WHERE utilizator=?", (utilizator,))     # delogheaza peste tot
+    if not n:
+        raise Eroare("Utilizatorul nu există.", 404)
+
+
+def modifica_utilizator(utilizator, nume=None, admin=None, activ=None):
+    with db() as c:
+        r = c.execute("SELECT * FROM utilizatori WHERE utilizator=?", (utilizator,)).fetchone()
+        if not r:
+            raise Eroare("Utilizatorul nu există.", 404)
+        if (admin is False or activ is False) and r["admin"]:
+            admini = c.execute("SELECT COUNT(*) FROM utilizatori WHERE admin=1 AND activ=1").fetchone()[0]
+            if admini <= 1:
+                raise Eroare("Trebuie să rămână cel puțin un administrator activ.")
+        if nume is not None:
+            c.execute("UPDATE utilizatori SET nume=? WHERE utilizator=?", (str(nume).strip() or utilizator, utilizator))
+        if admin is not None:
+            c.execute("UPDATE utilizatori SET admin=? WHERE utilizator=?", (1 if admin else 0, utilizator))
+        if activ is not None:
+            c.execute("UPDATE utilizatori SET activ=? WHERE utilizator=?", (1 if activ else 0, utilizator))
+            if not activ:
+                c.execute("DELETE FROM sesiuni WHERE utilizator=?", (utilizator,))
+
+
+def sterge_utilizator(utilizator):
+    modifica_utilizator(utilizator, activ=False)       # verifica sa ramana un admin
+    with db() as c:
+        c.execute("DELETE FROM utilizatori WHERE utilizator=?", (utilizator,))
+        c.execute("DELETE FROM sesiuni WHERE utilizator=?", (utilizator,))
+
+
+def verifica_parola(utilizator, parola):
+    with db() as c:
+        r = c.execute("SELECT * FROM utilizatori WHERE utilizator=?", (str(utilizator or "").strip(),)).fetchone()
+    # calculam hash-ul oricum, ca timpul de raspuns sa nu tradeze daca utilizatorul exista
+    sare = r["sare"] if r else "00" * 16
+    ok = secrets.compare_digest(_hash(parola or "", sare), r["hash"] if r else "x")
+    return dict(r) if (r and ok and r["activ"]) else None
+
+
+def creeaza_sesiune(utilizator, tine_minte):
+    token = secrets.token_urlsafe(32)
+    durata = timedelta(days=SESIUNE_ZILE_TINE_MINTE) if tine_minte else timedelta(hours=SESIUNE_ORE_FARA)
+    with db() as c:
+        c.execute("DELETE FROM sesiuni WHERE expira < ?", (acum(),))
+        c.execute("INSERT INTO sesiuni(token_hash, utilizator, creata_la, expira) VALUES (?,?,?,?)",
+                  (hashlib.sha256(token.encode()).hexdigest(), utilizator, acum(),
+                   (datetime.now() + durata).strftime("%Y-%m-%d %H:%M:%S")))
+        c.execute("UPDATE utilizatori SET ultima_logare=? WHERE utilizator=?", (acum(), utilizator))
+    return token, durata
+
+
+def utilizator_din_token(token):
+    if not token:
         return None
     with db() as c:
-        for r in c.execute("SELECT nume, sare, hash FROM editori"):
-            if secrets.compare_digest(_hash(cod, r["sare"]), r["hash"]):
-                return r["nume"]
-    return None
+        r = c.execute("""SELECT u.* FROM sesiuni s JOIN utilizatori u ON u.utilizator = s.utilizator
+                         WHERE s.token_hash=? AND s.expira > ? AND u.activ=1""",
+                      (hashlib.sha256(token.encode()).hexdigest(), acum())).fetchone()
+    return dict(r) if r else None
 
 
-def cere_editor(date_cerere):
-    nume = editor_dupa_cod(date_cerere.get("cod"))
-    if not nume:
-        raise Eroare("Cod incorect.", 403)
-    return nume
+def sterge_sesiune(token):
+    if token:
+        with db() as c:
+            c.execute("DELETE FROM sesiuni WHERE token_hash=?", (hashlib.sha256(token.encode()).hexdigest(),))
 
 
-def seteaza_editor(nume, cod):
-    nume, cod = nume.strip(), str(cod).strip()
-    if not nume or len(cod) < 4:
-        raise ValueError("Numele nu poate fi gol, iar codul trebuie sa aiba minim 4 caractere.")
-    with db() as c:
-        for r in c.execute("SELECT nume, sare, hash FROM editori WHERE nume<>?", (nume,)):
-            if _hash(cod, r["sare"]) == r["hash"]:
-                raise ValueError(f"Codul este deja folosit de {r['nume']}. Alege alt cod.")
-        sare = secrets.token_hex(16)
-        c.execute("INSERT OR REPLACE INTO editori(nume, sare, hash, creat_la) VALUES (?,?,?,?)",
-                  (nume, sare, _hash(cod, sare), acum()))
+def public(u):
+    return {"utilizator": u["utilizator"], "nume": u["nume"], "admin": bool(u["admin"])} if u else None
 
 
-def lista_editori():
-    with db() as c:
-        return [dict(r) for r in c.execute("SELECT nume, creat_la FROM editori ORDER BY nume")]
-
-
-def meniu_editori():
+def meniu_utilizatori():
+    """Administrare din consola (editori.bat) - util si daca ai uitat parola de administrator."""
+    def intreaba_parola():
+        while True:
+            p1 = getpass.getpass("Parola (minim 6 caractere, nu se afiseaza): ")
+            if p1 != getpass.getpass("Repeta parola: "):
+                print("Parolele nu coincid.")
+            elif len(p1) < 6:
+                print("Prea scurta.")
+            else:
+                return p1
     while True:
-        eds = lista_editori()
-        print(f"\n===== {APP_NAME} - EDITORI =====")
-        for i, e in enumerate(eds, 1):
-            print(f"  {i}. {e['nume']}  (din {e['creat_la'][:10]})")
-        if not eds:
-            print("  (niciun editor - nimeni nu poate modifica actiunile)")
-        print("\n  1 = adauga editor / schimba codul   2 = sterge editor   0 = iesire")
+        us = lista_utilizatori()
+        print(f"\n===== {APP_NAME} - UTILIZATORI =====")
+        for u in us:
+            print(f"  {u['utilizator']:<20} {u['nume']:<25} {'ADMIN' if u['admin'] else '':<6} "
+                  f"{'' if u['activ'] else '(dezactivat)'}  ultima logare: {(u['ultima_logare'] or '-')[:16]}")
+        if not us:
+            print("  (niciun utilizator - creeaza unul, sau deschide tracker-ul in browser)")
+        print("\n  1 = utilizator nou   2 = schimba parola   3 = fa / scoate administrator")
+        print("  4 = dezactiveaza / activeaza   5 = sterge   0 = iesire")
         opt = input("> ").strip()
-        if opt == "1":
-            nume = input("Nume (apare la comentarii si in istoric): ").strip()
-            cod = getpass.getpass("Cod personal (minim 4 caractere, nu se afiseaza): ")
-            if cod != getpass.getpass("Repeta codul: "):
-                print("Codurile nu coincid.")
-                continue
-            try:
-                seteaza_editor(nume, cod)
-                print(f"OK - {nume} poate edita.")
-            except ValueError as e:
-                print(e)
-        elif opt == "2":
-            nume = input("Numele de sters: ").strip()
-            with db() as c:
-                n = c.execute("DELETE FROM editori WHERE nume=?", (nume,)).rowcount
-            print("Sters." if n else "Nu exista.")
-        elif opt in ("0", ""):
-            return
+        try:
+            if opt == "1":
+                ut = input("Utilizator (pentru logare, ex. ion.popescu): ").strip()
+                nume = input("Nume afisat (ex. Ion Popescu): ").strip()
+                adm = not us or input("Administrator? D/N: ").strip().lower().startswith(("d", "y"))
+                creeaza_utilizator(ut, nume, intreaba_parola(), adm)
+                print(f"OK - {ut} creat{' (administrator)' if adm else ''}.")
+            elif opt == "2":
+                ut = input("Utilizator: ").strip()
+                schimba_parola(ut, intreaba_parola())
+                print("Parola schimbata.")
+            elif opt == "3":
+                ut = input("Utilizator: ").strip()
+                u = next((x for x in us if x["utilizator"].lower() == ut.lower()), None)
+                if u:
+                    modifica_utilizator(u["utilizator"], admin=not u["admin"])
+                    print("Acum este administrator." if not u["admin"] else "Nu mai este administrator.")
+                else:
+                    print("Nu exista.")
+            elif opt == "4":
+                ut = input("Utilizator: ").strip()
+                u = next((x for x in us if x["utilizator"].lower() == ut.lower()), None)
+                if u:
+                    modifica_utilizator(u["utilizator"], activ=not u["activ"])
+                    print("Activat." if not u["activ"] else "Dezactivat.")
+                else:
+                    print("Nu exista.")
+            elif opt == "5":
+                ut = input("Utilizator de sters: ").strip()
+                if input(f"Sigur stergi {ut}? D/N: ").strip().lower().startswith(("d", "y")):
+                    sterge_utilizator(ut)
+                    print("Sters.")
+            elif opt in ("0", ""):
+                return
+        except Eroare as e:
+            print(e)
 
 
 # =============================================================== actiuni
@@ -736,8 +848,8 @@ class Server(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(corp)
 
-    def json(self, obj, status=200):
-        self.raspuns(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+    def json(self, obj, status=200, extra=None):
+        self.raspuns(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8", extra)
 
     def fisier(self, path, tip=None, descarcare=None):
         if not os.path.isfile(path):
@@ -746,6 +858,30 @@ class Server(BaseHTTPRequestHandler):
             date_f = f.read()
         extra = {"Content-Disposition": f"inline; filename*=UTF-8''{quote(descarcare)}"} if descarcare else None
         self.raspuns(200, date_f, tip or mimetypes.guess_type(path)[0] or "application/octet-stream", extra)
+
+    def token(self):
+        for bucata in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = bucata.strip().partition("=")
+            if k == SESIUNE_COOKIE:
+                return v
+        return None
+
+    def utilizator(self):
+        return utilizator_din_token(self.token())
+
+    def cookie(self, token, durata=None):
+        c = f"{SESIUNE_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax"
+        if durata is not None:
+            c += f"; Max-Age={int(durata.total_seconds())}"
+        return c
+
+    def verifica_origine(self):
+        """Blocheaza cererile de scriere trimise de alte site-uri (CSRF)."""
+        orig = self.headers.get("Origin")
+        if orig and urlparse(orig).netloc.lower() != (self.headers.get("Host") or "").lower():
+            raise Eroare("Cerere respinsă (altă origine).", 403)
+        if "application/json" not in (self.headers.get("Content-Type") or ""):
+            raise Eroare("Cerere invalidă.", 400)
 
     def corp_json(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -780,16 +916,70 @@ class Server(BaseHTTPRequestHandler):
                 if m:
                     nume = nume_sigur(m.group(2))
                     return self.fisier(os.path.join(dir_atasamente(int(m.group(1))), nume), descarcare=nume)
+                if p == "/api/eu":
+                    return self.json({"ok": True, "eu": public(self.utilizator()), "configurat": numar_utilizatori() > 0})
+                if p == "/api/utilizatori":
+                    u = self.utilizator()
+                    if not u or not u["admin"]:
+                        raise Eroare("Doar pentru administratori.", 403)
+                    return self.json({"ok": True, "utilizatori": lista_utilizatori()})
                 if p == "/sanatate":
                     return self.json({"ok": True, "app": APP_NAME})
                 return self.json({"ok": False, "eroare": "Pagina nu există."}, 404)
 
+            self.verifica_origine()
             d = self.corp_json()
-            if p == "/api/cod":
-                nume = editor_dupa_cod(d.get("cod"))
-                return self.json({"ok": bool(nume), "nume": nume} if nume else {"ok": False, "eroare": "Cod incorect."},
-                                 200 if nume else 403)
-            autor = cere_editor(d)
+
+            # ----- autentificare
+            if p == "/api/initializare":          # primul cont, doar cat timp nu exista niciunul
+                with db_lock:
+                    if numar_utilizatori() > 0:
+                        raise Eroare("Există deja utilizatori. Autentifică-te.", 403)
+                    ut = creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), admin=True)
+                token, durata = creeaza_sesiune(ut, True)
+                print(f"  * primul administrator creat: {ut}")
+                return self.json({"ok": True, "eu": public(utilizator_din_token(token))}, extra={"Set-Cookie": self.cookie(token, durata)})
+            if p == "/api/login":
+                u = verifica_parola(d.get("utilizator"), d.get("parola"))
+                if not u:
+                    print(f"  ! logare esuata: {str(d.get('utilizator'))[:40]} de la {self.client_address[0]}")
+                    raise Eroare("Utilizator sau parolă greșită.", 401)
+                tine = bool(d.get("tine_minte"))
+                token, durata = creeaza_sesiune(u["utilizator"], tine)
+                return self.json({"ok": True, "eu": public(u)},
+                                 extra={"Set-Cookie": self.cookie(token, durata if tine else None)})
+            if p == "/api/logout":
+                sterge_sesiune(self.token())
+                return self.json({"ok": True}, extra={"Set-Cookie": self.cookie("", timedelta(0))})
+
+            u = self.utilizator()
+            if not u:
+                raise Eroare("Trebuie să te autentifici.", 401)
+            autor = u["nume"] or u["utilizator"]
+
+            if p == "/api/parola":                # schimbarea propriei parole
+                if not verifica_parola(u["utilizator"], d.get("parola_veche")):
+                    raise Eroare("Parola actuală este greșită.", 403)
+                schimba_parola(u["utilizator"], d.get("parola_noua"))
+                token, durata = creeaza_sesiune(u["utilizator"], True)
+                return self.json({"ok": True}, extra={"Set-Cookie": self.cookie(token, durata)})
+            m = re.fullmatch(r"/api/utilizatori(?:/([^/]+)(?:/(parola|sterge))?)?", p)
+            if m:
+                if not u["admin"]:
+                    raise Eroare("Doar pentru administratori.", 403)
+                ut, act = m.group(1), m.group(2)
+                if ut is None:
+                    creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), bool(d.get("admin")))
+                elif act == "parola":
+                    schimba_parola(ut, d.get("parola"))
+                elif act == "sterge":
+                    if ut.lower() == u["utilizator"].lower():
+                        raise Eroare("Nu îți poți șterge propriul cont.")
+                    sterge_utilizator(ut)
+                else:
+                    modifica_utilizator(ut, d.get("nume"), d.get("admin"), d.get("activ"))
+                return self.json({"ok": True, "utilizatori": lista_utilizatori()})
+
             if p == "/api/actiuni":
                 nr = adauga(d, autor)
                 print(f"  + #{nr} de {autor}")
@@ -830,8 +1020,8 @@ def porneste():
     os.makedirs(cale(ATASAMENTE_DIR), exist_ok=True)
     srv = ThreadingHTTPServer((HOST, PORT), Server)
     print(f"{APP_NAME} rulează pe http://{HOST}:{PORT}/   (baza de date: {DB_PATH})")
-    if not lista_editori():
-        print("  ATENȚIE: nu există niciun editor – rulează editori.bat.")
+    if not numar_utilizatori():
+        print("  Niciun utilizator încă: deschide tracker-ul în browser și creează contul de administrator.")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
@@ -840,9 +1030,10 @@ def porneste():
 
 def main():
     p = argparse.ArgumentParser(description=APP_NAME)
-    p.add_argument("--editori", action="store_true", help="administrare editori")
-    p.add_argument("--adauga-editor", nargs=2, metavar=("NUME", "COD"), help="adaugă/schimbă un editor fără meniu")
-    p.add_argument("--numar-editori", action="store_true", help="afișează câți editori există")
+    p.add_argument("--editori", "--utilizatori", dest="editori", action="store_true", help="administrare utilizatori")
+    p.add_argument("--adauga-utilizator", nargs=3, metavar=("UTILIZATOR", "NUME", "PAROLA"), help="creează un utilizator fără meniu")
+    p.add_argument("--admin", action="store_true", help="cu --adauga-utilizator: îl face administrator")
+    p.add_argument("--numar-utilizatori", "--numar-editori", dest="numar", action="store_true", help="câți utilizatori există")
     p.add_argument("--import-excel", metavar="FISIER")
     p.add_argument("--foaie", metavar="NUME", help="foaia din Excel (implicit se detectează)")
     p.add_argument("--import-csv", metavar="FISIER")
@@ -851,15 +1042,15 @@ def main():
     a = p.parse_args()
     creeaza_db()
     if a.editori:
-        return meniu_editori()
-    if a.adauga_editor:
+        return meniu_utilizatori()
+    if a.adauga_utilizator:
         try:
-            seteaza_editor(*a.adauga_editor)
-        except ValueError as e:
+            creeaza_utilizator(*a.adauga_utilizator, admin=a.admin)
+        except Eroare as e:
             raise SystemExit(str(e))
-        return print(f"OK - {a.adauga_editor[0]} poate edita.")
-    if a.numar_editori:
-        return print(len(lista_editori()))
+        return print(f"OK - {a.adauga_utilizator[0]} creat.")
+    if a.numar:
+        return print(numar_utilizatori())
     if a.import_excel:
         return importa_excel(a.import_excel, a.foaie)
     if a.import_csv:

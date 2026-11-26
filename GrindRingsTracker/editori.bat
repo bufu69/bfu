@@ -1,5 +1,7 @@
 @echo off
-REM Cine poate adauga / modifica / sterge actiuni: nume + cod personal.
+REM Administrare utilizatori (utilizator + parola): utilizator nou, parola noua, administrator,
+REM dezactivare, stergere. Util si daca ai uitat parola de administrator.
+REM Utilizatorii se pot gestiona si din tracker: butonul "Utilizatori" (doar pentru administratori).
 cd /d "%~dp0"
 set "PY="
 if exist "%~dp0python.txt" set /p PY=<"%~dp0python.txt"

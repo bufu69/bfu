@@ -27,12 +27,12 @@ index.html                    tracker-ul: lista, filtre, adaugare, modificare, c
 grafice.html                  grafice: deschise vs inchise, stadiu, prioritate, masini, responsabili
 CITESTE.txt                   acest fisier
 
-instalare-server.bat / .ps1   INSTALARE: Python, primul editor, firewall, pornire automata,
+instalare-server.bat / .ps1   INSTALARE: Python, cont administrator, firewall, pornire automata,
                               mail zilnic (optional)
 actualizare-server.bat / .ps1 ACTUALIZARE la o versiune noua, fara sa atinga datele
 porneste-tracker.bat          porneste serverul
 reporneste-tracker.bat        reporneste serverul
-editori.bat                   cine poate modifica (nume + cod personal)
+editori.bat                   utilizatori (utilizator + parola) - si din tracker, butonul Utilizatori
 import-excel.bat              importa actiuni dintr-un Excel (.xlsx / .xlsm)
 mail.bat                      trimite mailurile prin serverul de mail (SMTP)
 outlook-mailuri.bat           trimite mailurile prin Outlook
@@ -41,7 +41,7 @@ mail-exemplu.ini              model de setari pentru mailuri -> copiaza-l in mai
 setup-GrindRingsTracker.nsi   script pentru installer .exe (NSIS)
 
 Create automat - NU le sterge:
-grind_rings.db                BAZA DE DATE (actiuni, comentarii, istoric, editori)
+grind_rings.db                BAZA DE DATE (actiuni, comentarii, istoric, utilizatori)
 atasamente\                   fisierele atasate, cate un folder pe numarul actiunii
 backups\                      copie zilnica a bazei de date (ultimele 30 de zile)
 mail_out\                     mailurile pregatite pentru Outlook
@@ -54,24 +54,31 @@ INSTALARE
    nu in OneDrive / Desktop sincronizat. Daca il pornesti din OneDrive, instalarea se ofera
    sa il copieze singura in C:\GrindRingsTracker.
 2. Dublu-click pe instalare-server.bat si accepta cererea de Administrator.
-3. Adauga primul editor (nume + cod) cand te intreaba.
+3. Creeaza contul de administrator (utilizator + parola): in instalare sau la prima
+   deschidere a tracker-ului in browser - pagina il cere singura.
 4. Gata - serverul porneste singur la fiecare pornire a calculatorului.
 De proba, fara instalare: porneste-tracker.bat (merge cat timp fereastra e deschisa).
 
 
 FOLOSIRE
 --------
-- Oricine din retea poate vedea tracker-ul. Pentru modificari, apasa "Autentificare"
-  si introdu codul personal; ramai autentificat pana inchizi browserul.
+- Oricine din retea poate VEDEA tracker-ul. Ca sa adaugi sau sa modifici, apasa
+  "Autentificare" si intra cu utilizatorul si parola ta.
+- "Tine-ma minte pe acest calculator" (bifat implicit): browserul te autentifica automat
+  180 de zile, pana apesi "Iesire". Nebifat: ramai autentificat pana inchizi browserul.
 - Click pe o actiune: detalii, modificare, comentarii, fisiere atasate, istoric.
 - Casutele de sus (Deschise, In lucru, Intarziate...) sunt si filtre: click pe ele.
 - Export: descarca toate actiunile intr-un CSV care se deschide in Excel.
 
 
-EDITORI
--------
-editori.bat -> 1 = adauga / schimba codul, 2 = sterge.
-Codurile se pastreaza criptat. Numele editorului apare la comentarii si in istoric.
+UTILIZATORI
+-----------
+- Primul cont creat este ADMINISTRATOR. Administratorii au in tracker butonul "Utilizatori":
+  utilizator nou, parola noua, fa / scoate administrator, dezactiveaza, sterge.
+- Fiecare isi poate schimba parola din butonul "Parola".
+- Numele afisat apare la comentarii si in istoric.
+- Ai uitat parola de administrator? editori.bat -> 2 = schimba parola (pe calculatorul-server).
+- Parolele se pastreaza criptat (hash), niciodata in clar.
 
 
 IMPORT DIN EXCEL

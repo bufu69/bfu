@@ -77,12 +77,15 @@ if (-not (Test-Path $pyw)) { $pyw = $py }
 Set-Content -Path $fisPy -Value $py -Encoding Default
 Write-Host "Python: $py"
 
-# 2. Baza de date + primul editor
-$n = [int](& $py "$Dir\server.py" --numar-editori)
+# 2. Baza de date + contul de administrator
+$n = [int](& $py "$Dir\server.py" --numar-utilizatori)
 if ($n -eq 0) {
-  Write-Host "`nNu exista niciun editor. Adauga cel putin unul (nume + cod personal)." -ForegroundColor Yellow
-  & $py "$Dir\server.py" --editori
-} else { Write-Host "Editori: $n (le schimbi oricand cu editori.bat)" }
+  Write-Host "`nNu exista inca niciun cont. Poti crea contul de administrator:" -ForegroundColor Yellow
+  Write-Host "  - acum, aici (utilizator + parola), sau"
+  Write-Host "  - la prima deschidere a tracker-ului in browser (iti cere singur)."
+  $r = Read-Host "Il creezi acum? D/N"
+  if ($r -match '^[dDyY]') { & $py "$Dir\server.py" --utilizatori }
+} else { Write-Host "Utilizatori: $n (ii gestionezi din tracker - butonul Utilizatori - sau cu editori.bat)" }
 
 # 3. Firewall
 $regula = "Grind Rings Action Tracker $Port"
