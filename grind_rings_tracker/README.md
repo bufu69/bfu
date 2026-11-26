@@ -1,8 +1,14 @@
 # Grind Rings Action Tracker
 
-Dashboard-ul este același ca modelul `past_due_tracker.html` (același aspect, aceleași grafice, filtre, formular, editare, ștergere cu cod, atașamente, ticker), cu numele „Grind Rings Action Tracker”.
+Dashboard-ul are același aspect ca modelul `past_due_tracker.html` (aceleași grafice, filtre, formular, editare, ștergere cu cod, atașamente), cu numele „Grind Rings Action Tracker”.
 
-**Fără Excel:** acțiunile se țin într-o bază de date **SQLite** (`grind_rings.db`), gestionată de serverul Python pe portul **8092**. Nu mai este nevoie de `PD_PO_Action_Tracker.xlsm`, de Excel instalat sau de `Start-ActionListener.ps1`.
+**Server complet independent:**
+- acțiunile se țin într-o bază de date **SQLite** proprie (`grind_rings.db`), fără Excel, fără `Start-ActionListener.ps1`;
+- nu depinde de Past Due, de romhdata03 sau de alt server; atașamentele sunt în folderul propriu `attachments/grindrings/`;
+- nu are nevoie de internet: fonturile sunt incluse în `static/fonts/`, nu se mai încarcă nimic din CDN;
+- ticker-ul din antet arată indicatorii acestui tracker (Active, Întârziate, Urgent), calculați din baza de date.
+
+Totul rulează dintr-un singur folder, pe portul **8092**. Folderul se poate copia pe orice calculator cu Python 3.
 
 ## Pornire
 Trebuie doar Python 3 (fără pachete suplimentare).
@@ -26,7 +32,6 @@ Copiază `config.example.json` în `config.json` și modifică:
 | `pins` | Codurile personale: `"cod": "Nume"`. Numele apare în comentarii și în istoric. |
 | `lists` | Valori fixe pentru listele din formular (Client, Responsabil, Tip Actiune, Familie Rulment, Tip component). Pe lângă ele apar automat valorile deja folosite. |
 | `attachments_dir` | Unde se salvează atașamentele |
-| `ticker_source` | `Dashboard2026.xlsm` pentru bara ticker (URL sau cale); gol = dezactivat |
 | `backup_dir`, `backup_keep_days` | Backup zilnic al bazei de date (înainte de prima modificare din zi); se păstrează ultimele 30 |
 
 ## Baza de date
@@ -50,7 +55,7 @@ După import, fișierul este redenumit (`.importat_<data>`), ca să nu fie impor
 | GET | `/api/lists` | listele pentru formular |
 | GET | `/api/export.csv` | export CSV |
 | GET | `/api/history` | istoricul modificărilor |
-| GET | `/data/ticker` | ticker-ul (proxy) |
+| GET | `/static/fonts/...` | fonturile paginii |
 | POST | `/` | acțiune nouă → `{ok, no}` |
 | POST | `/edit` | editare (comentariul nou se adaugă la cele vechi) |
 | POST | `/delete` | ștergere |

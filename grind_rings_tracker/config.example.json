@@ -3,7 +3,6 @@
   "port": 8092,
   "database": "grind_rings.db",
   "attachments_dir": "attachments",
-  "ticker_source": "http://romhdata03/timkentraining/Dashboard2026.xlsm",
   "pins": {
     "1234": "Admin"
   },

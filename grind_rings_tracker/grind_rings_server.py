@@ -8,7 +8,7 @@ Un singur proces, fara Excel si fara Start-ActionListener.ps1:
   * listele pentru formular (clienti, responsabili...)   GET  /api/lists
   * export CSV al tuturor actiunilor                     GET  /api/export.csv
   * istoricul modificarilor                              GET  /api/history?no=..
-  * ticker-ul (Dashboard2026.xlsm) prin proxy            GET  /data/ticker
+  * fonturile paginii (fara internet)                    GET  /static/fonts/...
   * adauga o actiune noua                                POST /
   * editeaza o actiune                                   POST /edit
   * sterge o actiune                                     POST /delete
@@ -32,7 +32,6 @@ import sqlite3
 import sys
 import threading
 import unicodedata
-import urllib.request
 from datetime import date, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -48,8 +47,6 @@ DEFAULT_CONFIG = {
     "database": "grind_rings.db",
     # Folderul unde se salveaza atasamentele: <folder>/<source>/<no>/<fisier>
     "attachments_dir": "attachments",
-    # Fisierul ticker-ului: URL (http://...) sau cale locala / UNC. Gol = fara ticker.
-    "ticker_source": "http://romhdata03/timkentraining/Dashboard2026.xlsm",
     # Codurile personale: "cod": "Nume". Numele apare in comentarii si in istoric.
     "pins": {"1234": "Admin"},
     # Valori fixe pentru listele din formular (pe langa cele deja folosite in actiuni).
@@ -342,7 +339,7 @@ def history(no=None):
 
 # ---------------------------------------------------------------- atasamente
 def attach_dir(source, no):
-    return os.path.join(CFG["attachments_dir"], safe_part(source or "pastdue"), safe_part(no))
+    return os.path.join(CFG["attachments_dir"], safe_part(source or "grindrings"), safe_part(no))
 
 
 def list_attachments(source, no):
@@ -444,12 +441,15 @@ class Handler(BaseHTTPRequestHandler):
                 no = (qs.get("no") or [""])[0]
                 return self.send_json(200, {"ok": True, "history": history(no or None)})
 
-            if path == "/data/ticker":
-                return self.serve_ticker()
+            if path.startswith("/static/fonts/"):
+                fname = os.path.basename(path)
+                full = os.path.join(BASE_DIR, "static", "fonts", fname)
+                ctype = "text/css; charset=utf-8" if fname.endswith(".css") else "font/woff2"
+                return self.send_file(full, ctype)
 
             if path == "/list":
                 no = (qs.get("no") or [""])[0]
-                source = (qs.get("source") or ["pastdue"])[0]
+                source = (qs.get("source") or ["grindrings"])[0]
                 return self.send_json(200, {"ok": True, "files": list_attachments(source, no)})
 
             if path.startswith("/attachments/"):
@@ -469,21 +469,6 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(500, {"ok": False, "error": f"Baza de date: {e}"})
 
         self.send_error(HTTPStatus.NOT_FOUND)
-
-    def serve_ticker(self):
-        src = (CFG.get("ticker_source") or "").strip()
-        if not src:
-            return self.send_error(HTTPStatus.NOT_FOUND, "Ticker neconfigurat")
-        try:
-            if re.match(r"^https?://", src, re.I):
-                with urllib.request.urlopen(src, timeout=10) as r:
-                    data = r.read()
-            else:
-                with open(src, "rb") as f:
-                    data = f.read()
-        except Exception as e:  # noqa: BLE001
-            return self.send_error(HTTPStatus.BAD_GATEWAY, f"Ticker indisponibil: {e}")
-        self.send_bytes(data, "application/octet-stream")
 
     # ---------- POST
     def do_POST(self):
@@ -571,7 +556,6 @@ def main():
     print(f"{APP_NAME} ruleaza pe http://{CFG['host']}:{CFG['port']}/")
     print(f"  Baza de date: {CFG['database']}")
     print(f"  Atasamente:   {CFG['attachments_dir']}")
-    print(f"  Ticker:       {CFG.get('ticker_source') or '(dezactivat)'}")
     if CFG["pins"] == DEFAULT_CONFIG["pins"]:
         print("  ATENTIE: folosesti codul implicit 1234. Seteaza codurile reale in config.json.")
     try:
