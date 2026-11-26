@@ -1,9 +1,9 @@
-// Încorporează datele unui fișier Excel în Dashboard_Analiza_5C.html (datele afișate la prima deschidere).
-// Utilizare: npm i xlsx@0.18.5 && node tools/build-data.js "Analiza 5C.xlsx" [Dashboard_Analiza_5C.html]
+// Încorporează datele unui fișier Excel în apps/analiza-5c/index.html (datele afișate la prima deschidere).
+// Utilizare: npm i xlsx@0.18.5 && node tools/build-data.js "Analiza 5C.xlsx" [apps/analiza-5c/index.html]
 const fs = require('fs'), path = require('path'), XLSX = require('xlsx');
 const [xlsxPath, htmlArg] = process.argv.slice(2);
 if (!xlsxPath) { console.error('Utilizare: node tools/build-data.js <fisier.xlsx> [dashboard.html]'); process.exit(1); }
-const htmlPath = htmlArg || path.join(__dirname, '..', 'Dashboard_Analiza_5C.html');
+const htmlPath = htmlArg || path.join(__dirname, '..', 'apps', 'analiza-5c', 'index.html');
 let html = fs.readFileSync(htmlPath, 'utf8');
 const src = html.slice(html.indexOf('/*PARSER-START*/'), html.indexOf('/*PARSER-END*/'));
 const parse5C = new Function(src + '\nreturn parse5C;')();

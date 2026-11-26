@@ -1,6 +1,46 @@
+# Aplicații web
+
+Fiecare aplicație stă în folderul ei din `apps/`, iar `server.py` le servește pe toate de pe același server.
+
+```
+apps/
+  analiza-5c/          -> http://<server>:8080/analiza-5c/
+    index.html
+    app.json           (opțional: titlu, descriere, iconiță)
+  alta-aplicatie/      -> http://<server>:8080/alta-aplicatie/
+server.py
+porneste-server.bat    (pornire cu dublu-click pe Windows)
+```
+
+## Serverul
+Are nevoie doar de Python 3.8+ (fără pachete de instalat).
+
+- **Windows:** dublu-click pe `porneste-server.bat`
+- **Linux / macOS / Windows din terminal:** `python server.py`
+
+La pornire afișează adresele: `http://localhost:8080/` pe calculatorul serverului și `http://<IP>:8080/` pentru celelalte calculatoare/TV-uri din rețea (Windows poate cere permisiunea în firewall – alege *Rețele private*).
+
+Opțiuni: `--port 9000` (alt port), `--host 127.0.0.1` (doar local, nu din rețea), `--apps <folder>` (alt folder de aplicații), `--quiet` (fără jurnal).
+
+Ce face:
+- Pagina principală `/` listează automat toate aplicațiile. Titlul, descrierea și iconița vin din `app.json`; fără el se ia `<title>` din pagină.
+- O aplicație nouă = un folder nou în `apps/` cu un `index.html` (sau orice fișier `.html`). Apare imediat, fără repornirea serverului.
+- Fișierele modificate (pagini, Excel, JSON, CSV) se văd imediat: browserul le reverifică la fiecare încărcare.
+- Folderele și fișierele care încep cu `.` sau `_` sunt ascunse; conținutul folderelor nu se listează; nu se poate ieși din `apps/`.
+- `/api/apps` întoarce lista aplicațiilor în JSON.
+
+Exemplu `app.json`:
+```json
+{ "title": "Dashboard Analiză 5C", "description": "Analiza 5C săptămânală", "icon": "📊" }
+```
+
+Notă: toate aplicațiile de pe același server împart `localStorage`-ul browserului, de aceea fiecare aplicație își prefixează cheile (ex. `dashboard5c_…`).
+
 # Dashboard Analiză 5C
 
-`Dashboard_Analiza_5C.html` este un singur fișier: se deschide direct în browser (dublu-click), fără server.
+`apps/analiza-5c/index.html` este un singur fișier: merge prin server la `/analiza-5c/` sau se poate deschide direct în browser (dublu-click).
+
+**Excel pe server:** copiază `Analiza 5C.xlsx` în `apps/analiza-5c/`, apoi în dashboard, la **Actualizare de pe server**, salvează adresa `Analiza%205C.xlsx` (sau `http://<server>:8080/analiza-5c/Analiza%205C.xlsx`). Cu recitirea automată pornită, înlocuirea fișierului din folder se vede în dashboard în cel mult 30 s.
 
 ## Actualizare săptămânală
 1. În `Analiza 5C.xlsx` adaugi o foaie nouă la final, cu numele `5C 2026 wNN` (aceeași structură: antetul cu `NR.` pe rândul 4).
@@ -34,5 +74,5 @@ Cu bifa **tab-uri**, la final trece la tab-ul următor în loc să rămână pe 
 Datele afișate la prima deschidere se pot reîmprospăta dintr-un Excel cu:
 ```
 npm i xlsx@0.18.5
-node tools/build-data.js "Analiza 5C.xlsx"
+node tools/build-data.js "Analiza 5C.xlsx"   # scrie în apps/analiza-5c/index.html
 ```
