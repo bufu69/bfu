@@ -302,41 +302,6 @@ dialog .camp-dlg input { letter-spacing: normal; font-size: 15px; }
   </form>
 </dialog>
 
-<dialog id="dlgParola">
-  <form id="formParola">
-    <h2>Schimbă parola</h2>
-    <p>După schimbare vei fi delogat de pe celelalte calculatoare.</p>
-    <input type="text" autocomplete="username" class="ascuns" id="pzUser">
-    <div class="camp-dlg"><label for="pzVeche">Parola actuală</label><input id="pzVeche" type="password" autocomplete="current-password"></div>
-    <div class="camp-dlg"><label for="pzNoua">Parola nouă (minim 6 caractere)</label><input id="pzNoua" type="password" autocomplete="new-password"></div>
-    <div class="camp-dlg"><label for="pzNoua2">Repetă parola nouă</label><input id="pzNoua2" type="password" autocomplete="new-password"></div>
-    <div class="mesaj" id="pzMesaj"></div>
-    <div class="rand-btn">
-      <button type="button" class="btn" onclick="this.closest('dialog').close()">Anulează</button>
-      <button type="submit" class="btn primar">Schimbă parola</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="dlgUtilizatori" class="lat">
-  <div class="dlg-in">
-    <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Utilizatori</h2>
-      <button class="inchide" onclick="this.closest('dialog').close()" aria-label="Închide"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <p>Toți utilizatorii activi pot adăuga și modifica acțiuni. Administratorii pot gestiona și utilizatorii.</p>
-    <div class="tabel-u"><table id="tblUtil"></table></div>
-    <h3 class="sub-dlg">Utilizator nou</h3>
-    <form id="formUtilNou" class="formular" autocomplete="off">
-      <div class="camp"><label>Utilizator (pentru logare)</label><input id="unUser" placeholder="ex. ana.ionescu" autocapitalize="off" spellcheck="false"></div>
-      <div class="camp"><label>Nume afișat</label><input id="unNume" placeholder="ex. Ana Ionescu"></div>
-      <div class="camp"><label>Parolă inițială (minim 6)</label><input id="unParola" type="text" autocomplete="off"></div>
-      <div class="camp" style="display:flex;align-items:flex-end;gap:10px;justify-content:space-between">
-        <label class="bifa" style="margin:0 0 8px"><input type="checkbox" id="unAdmin"> Administrator</label>
-        <button class="btn primar" type="submit">Adaugă</button></div>
-    </form>
-    <div class="mesaj" id="unMesaj"></div>
-  </div>
-</dialog>
-
 <div class="toast" id="toast"></div>
 
 <datalist id="dlMasina"></datalist><datalist id="dlClient"></datalist>
@@ -524,8 +489,7 @@ function zonaEditor() {
   const u = st.editor;
   $("zonaEditor").innerHTML = u
     ? `<span class="meniu-user"><span class="editor-chip" title="Autentificat ca ${esc(u.utilizator)}">✓ ${esc(u.nume)}</span>
-       <button class="btn mic" id="btnParola" title="Schimbă parola">Parolă</button>
-       ${u.admin ? `<button class="btn mic" id="btnUtil">Utilizatori</button>` : ""}
+       <a class="btn mic" href="setari${u.admin ? "" : "#cont"}" title="${u.admin ? "Conturi, email, contul meu" : "Contul meu"}">⚙ Setări</a>
        <button class="btn mic" id="btnIesire">Ieșire</button></span>`
     : `<button class="btn" id="btnIntra">Autentificare</button>`;
 }
@@ -545,8 +509,6 @@ async function iesire() {
 $("zonaEditor").addEventListener("click", e => {
   if (e.target.closest("#btnIesire")) iesire();
   if (e.target.closest("#btnIntra")) cereLogin();
-  if (e.target.closest("#btnParola")) { $("formParola").reset(); $("pzUser").value = st.editor.utilizator; $("pzMesaj").className = "mesaj"; $("dlgParola").showModal(); $("pzVeche").focus(); }
-  if (e.target.closest("#btnUtil")) deschideUtilizatori();
 });
 
 // initializare = true: nu exista inca niciun cont -> se creeaza administratorul
@@ -588,66 +550,6 @@ function cereLogin(initializare = false) {
   });
 }
 async function asiguraEditor() { return st.editor ? true : await cereLogin(); }
-
-$("formParola").addEventListener("submit", async ev => {
-  ev.preventDefault();
-  const m = $("pzMesaj");
-  try {
-    if ($("pzNoua").value !== $("pzNoua2").value) throw new Error("Parolele noi nu coincid.");
-    await api("api/parola", { parola_veche: $("pzVeche").value, parola_noua: $("pzNoua").value });
-    $("dlgParola").close(); toast("Parola a fost schimbată.");
-  } catch (e) { m.textContent = e.message; m.className = "mesaj err"; }
-});
-
-/* ---------- administrare utilizatori ---------- */
-function deseneazaUtilizatori(lista) {
-  $("tblUtil").innerHTML = `<tr><th>Utilizator</th><th>Nume</th><th>Rol</th><th>Stare</th><th>Ultima logare</th><th></th></tr>` +
-    lista.map(u => `<tr data-u="${esc(u.utilizator)}">
-      <td><b>${esc(u.utilizator)}</b></td><td>${esc(u.nume)}</td>
-      <td>${u.admin ? `<span class="badge b-lucru">Administrator</span>` : "Utilizator"}</td>
-      <td>${u.activ ? `<span class="badge b-inchis">Activ</span>` : `<span class="badge b-urgenta">Dezactivat</span>`}</td>
-      <td class="secundar">${u.ultima_logare ? ro(u.ultima_logare.slice(0, 10)) + " " + u.ultima_logare.slice(11, 16) : "—"}</td>
-      <td><button class="btn mic" data-a="parola">Parolă nouă</button><button class="btn mic" data-a="admin">${u.admin ? "Scoate admin" : "Fă admin"}</button><button class="btn mic" data-a="activ">${u.activ ? "Dezactivează" : "Activează"}</button>${u.utilizator.toLowerCase() === st.editor.utilizator.toLowerCase() ? "" : `<button class="btn mic pericol" data-a="sterge">Șterge</button>`}</td>
-    </tr>`).join("");
-  st.utilizatori = lista;
-}
-async function deschideUtilizatori() {
-  try {
-    const j = await api("api/utilizatori?t=" + Date.now());
-    deseneazaUtilizatori(j.utilizatori);
-    $("formUtilNou").reset(); $("unMesaj").className = "mesaj";
-    $("dlgUtilizatori").showModal();
-  } catch (e) { toast(e.message); }
-}
-$("tblUtil").addEventListener("click", async e => {
-  const b = e.target.closest("button[data-a]"); if (!b) return;
-  const ut = b.closest("tr").dataset.u, u = st.utilizatori.find(x => x.utilizator === ut), m = $("unMesaj");
-  try {
-    let j;
-    if (b.dataset.a === "parola") {
-      const p = prompt(`Parola nouă pentru ${ut} (minim 6 caractere):`); if (!p) return;
-      j = await api(`api/utilizatori/${encodeURIComponent(ut)}/parola`, { parola: p });
-      m.textContent = `Parola pentru ${ut} a fost schimbată. Comunic-o utilizatorului.`;
-    } else if (b.dataset.a === "sterge") {
-      if (!confirm(`Ștergi utilizatorul ${ut}? Acțiunile și comentariile lui rămân.`)) return;
-      j = await api(`api/utilizatori/${encodeURIComponent(ut)}/sterge`, {});
-      m.textContent = `${ut} a fost șters.`;
-    } else {
-      j = await api(`api/utilizatori/${encodeURIComponent(ut)}`, b.dataset.a === "admin" ? { admin: !u.admin } : { activ: !u.activ });
-      m.textContent = "Salvat.";
-    }
-    m.className = "mesaj ok"; deseneazaUtilizatori(j.utilizatori);
-  } catch (err) { m.textContent = err.message; m.className = "mesaj err"; }
-});
-$("formUtilNou").addEventListener("submit", async ev => {
-  ev.preventDefault();
-  const m = $("unMesaj");
-  try {
-    const j = await api("api/utilizatori", { utilizator: $("unUser").value.trim(), nume: $("unNume").value.trim(), parola: $("unParola").value, admin: $("unAdmin").checked });
-    m.textContent = `Utilizatorul ${$("unUser").value.trim()} a fost creat.`; m.className = "mesaj ok";
-    $("formUtilNou").reset(); deseneazaUtilizatori(j.utilizatori);
-  } catch (err) { m.textContent = err.message; m.className = "mesaj err"; }
-});
 
 /* ---------- panou lateral ---------- */
 function deschidePanou() { $("panou").classList.add("deschis"); $("voal").classList.add("deschis"); $("panou").setAttribute("aria-hidden", "false"); }

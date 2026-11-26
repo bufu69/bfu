@@ -207,9 +207,18 @@ CREATE TABLE IF NOT EXISTS sesiuni (
 CREATE TABLE IF NOT EXISTS liste (
   lista TEXT, valoare TEXT, PRIMARY KEY (lista, valoare)
 );
+CREATE TABLE IF NOT EXISTS setari (cheie TEXT PRIMARY KEY, valoare TEXT);
+CREATE TABLE IF NOT EXISTS destinatari (responsabil TEXT PRIMARY KEY COLLATE NOCASE, email TEXT);
+CREATE TABLE IF NOT EXISTS mail_jurnal (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, la TEXT, tip TEXT, catre TEXT, subiect TEXT, ok INTEGER, eroare TEXT
+);
 CREATE INDEX IF NOT EXISTS ix_com_nr ON comentarii(nr);
 CREATE INDEX IF NOT EXISTS ix_ist_nr ON istoric(nr);
 """)
+        coloane = [r[1] for r in c.execute("PRAGMA table_info(utilizatori)")]
+        if "email" not in coloane:
+            c.execute("ALTER TABLE utilizatori ADD COLUMN email TEXT DEFAULT ''")
+    importa_mail_ini()
 
 
 def jurnal(c, nr, operatie, autor, detalii):
@@ -261,18 +270,19 @@ def numar_utilizatori():
 def lista_utilizatori():
     with db() as c:
         return [dict(r) for r in c.execute(
-            "SELECT utilizator, nume, admin, activ, creat_la, ultima_logare FROM utilizatori ORDER BY utilizator")]
+            "SELECT utilizator, nume, email, admin, activ, creat_la, ultima_logare FROM utilizatori ORDER BY utilizator")]
 
 
-def creeaza_utilizator(utilizator, nume, parola, admin=False):
+def creeaza_utilizator(utilizator, nume, parola, admin=False, email=""):
     utilizator = _valideaza(utilizator, parola)
     nume = str(nume or "").strip() or utilizator
+    email = _adrese_valide(email, "Email")
     with db() as c:
         if c.execute("SELECT 1 FROM utilizatori WHERE utilizator=?", (utilizator,)).fetchone():
             raise Eroare(f"Utilizatorul „{utilizator}” există deja.")
         sare = secrets.token_hex(16)
-        c.execute("INSERT INTO utilizatori(utilizator, nume, sare, hash, admin, activ, creat_la) VALUES (?,?,?,?,?,1,?)",
-                  (utilizator, nume, sare, _hash(parola, sare), 1 if admin else 0, acum()))
+        c.execute("INSERT INTO utilizatori(utilizator, nume, email, sare, hash, admin, activ, creat_la) VALUES (?,?,?,?,?,?,1,?)",
+                  (utilizator, nume, email, sare, _hash(parola, sare), 1 if admin else 0, acum()))
     return utilizator
 
 
@@ -286,7 +296,7 @@ def schimba_parola(utilizator, parola):
         raise Eroare("Utilizatorul nu există.", 404)
 
 
-def modifica_utilizator(utilizator, nume=None, admin=None, activ=None):
+def modifica_utilizator(utilizator, nume=None, admin=None, activ=None, email=None):
     with db() as c:
         r = c.execute("SELECT * FROM utilizatori WHERE utilizator=?", (utilizator,)).fetchone()
         if not r:
@@ -297,6 +307,8 @@ def modifica_utilizator(utilizator, nume=None, admin=None, activ=None):
                 raise Eroare("Trebuie să rămână cel puțin un administrator activ.")
         if nume is not None:
             c.execute("UPDATE utilizatori SET nume=? WHERE utilizator=?", (str(nume).strip() or utilizator, utilizator))
+        if email is not None:
+            c.execute("UPDATE utilizatori SET email=? WHERE utilizator=?", (_adrese_valide(email, "Email"), utilizator))
         if admin is not None:
             c.execute("UPDATE utilizatori SET admin=? WHERE utilizator=?", (1 if admin else 0, utilizator))
         if activ is not None:
@@ -350,7 +362,7 @@ def sterge_sesiune(token):
 
 
 def public(u):
-    return {"utilizator": u["utilizator"], "nume": u["nume"], "admin": bool(u["admin"])} if u else None
+    return {"utilizator": u["utilizator"], "nume": u["nume"], "email": u.get("email") or "", "admin": bool(u["admin"])} if u else None
 
 
 def meniu_utilizatori():
@@ -712,25 +724,158 @@ def importa_csv(path):
         print(f"Gata: {a} acțiuni importate, {s} sărite.")
 
 
-# =============================================================== mailuri
-def citeste_mail_ini():
+# =============================================================== setari email
+SETARI_EMAIL_IMPLICIT = {
+    "smtp": {"server": "", "port": 587, "securitate": "starttls", "utilizator": "", "parola": "", "de_la": ""},
+    "general": {"zile_inainte_termen": 2, "subiect": "Grind Rings - acțiuni de urmărit", "link_tracker": "",
+                "cc": "", "rezumat_catre": "", "doar_rezumat": False},
+    "program": {"activ": False, "zile": [1, 2, 3, 4, 5], "ora": "07:30"},
+}
+
+
+def citeste_setare(cheie, implicit=None):
+    with db() as c:
+        r = c.execute("SELECT valoare FROM setari WHERE cheie=?", (cheie,)).fetchone()
+    return json.loads(r["valoare"]) if r else implicit
+
+
+def scrie_setare(cheie, valoare):
+    with db() as c:
+        c.execute("INSERT OR REPLACE INTO setari(cheie, valoare) VALUES (?,?)", (cheie, json.dumps(valoare, ensure_ascii=False)))
+
+
+def setari_email():
+    """Setarile complete (cu parola SMTP) - doar pentru uz intern."""
+    s = json.loads(json.dumps(SETARI_EMAIL_IMPLICIT))
+    salvat = citeste_setare("email", {}) or {}
+    for k in s:
+        s[k].update(salvat.get(k, {}))
+    return s
+
+
+def importa_mail_ini():
+    """O singura data: preia setarile din mail.ini (versiunea veche) in baza de date."""
     p = cale(MAIL_INI)
-    if not os.path.exists(p):
-        raise SystemExit("Lipsește mail.ini. Copiază mail-exemplu.ini în mail.ini și completează-l.")
+    if not os.path.exists(p) or citeste_setare("email") is not None:
+        return
     cp = configparser.ConfigParser(interpolation=None)
     cp.optionxform = str
     cp.read(p, encoding="utf-8")
-    return cp
+    s = setari_email()
+    for sec in ("smtp", "general"):
+        if cp.has_section(sec):
+            for k, v in cp[sec].items():
+                if k in s[sec]:
+                    s[sec][k] = int(v) if k in ("port", "zile_inainte_termen") and v.strip().isdigit() else v.strip()
+    scrie_setare("email", s)
+    if cp.has_section("destinatari"):
+        with db() as c:
+            for resp, email in cp["destinatari"].items():
+                if email.strip():
+                    c.execute("INSERT OR REPLACE INTO destinatari(responsabil, email) VALUES (?,?)", (resp.strip(), email.strip()))
+    print(f"  Setările de email au fost preluate din {MAIL_INI} (de acum se modifică din pagina Setări).")
 
 
-def pregateste_mailuri(cp):
-    g = cp["general"] if cp.has_section("general") else {}
-    zile = int(g.get("zile_inainte_termen", "2") or 2)
-    link = g.get("link_tracker", "").strip()
-    subiect = g.get("subiect", "Grind Rings - acțiuni de urmărit").strip()
-    cc = g.get("cc", "").strip()
-    rezumat = g.get("rezumat_catre", "").strip()
-    adrese = {fara_diacritice(k): v.strip() for k, v in (cp["destinatari"].items() if cp.has_section("destinatari") else [])}
+def _adrese_valide(text, camp):
+    adrese = [x.strip() for x in re.split(r"[;,]", str(text or "")) if x.strip()]
+    for a in adrese:
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", a):
+            raise Eroare(f"Adresă de email invalidă la „{camp}”: {a}")
+    return "; ".join(adrese)
+
+
+def salveaza_setari_email(d):
+    s = setari_email()
+    sm, g, pr = d.get("smtp", {}), d.get("general", {}), d.get("program", {})
+    s["smtp"].update(server=str(sm.get("server", "")).strip(), utilizator=str(sm.get("utilizator", "")).strip(),
+                     de_la=_adrese_valide(sm.get("de_la", ""), "Expeditor"),
+                     securitate=sm.get("securitate") if sm.get("securitate") in ("starttls", "ssl", "niciuna") else "starttls")
+    try:
+        s["smtp"]["port"] = max(1, min(65535, int(sm.get("port") or 25)))
+    except (TypeError, ValueError):
+        raise Eroare("Portul trebuie să fie un număr.")
+    if sm.get("sterge_parola"):
+        s["smtp"]["parola"] = ""
+    elif sm.get("parola"):
+        s["smtp"]["parola"] = str(sm["parola"])
+    try:
+        s["general"]["zile_inainte_termen"] = max(0, min(60, int(g.get("zile_inainte_termen", 2))))
+    except (TypeError, ValueError):
+        raise Eroare("„Zile înainte de termen” trebuie să fie un număr.")
+    s["general"].update(subiect=str(g.get("subiect", "")).strip() or SETARI_EMAIL_IMPLICIT["general"]["subiect"],
+                        link_tracker=str(g.get("link_tracker", "")).strip(),
+                        cc=_adrese_valide(g.get("cc"), "Copie (CC)"),
+                        rezumat_catre=_adrese_valide(g.get("rezumat_catre"), "Rezumat către"),
+                        doar_rezumat=bool(g.get("doar_rezumat")))
+    ora = str(pr.get("ora", "07:30")).strip()
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", ora):
+        raise Eroare("Ora trebuie să fie în forma HH:MM (ex. 07:30).")
+    zile = sorted({int(z) for z in pr.get("zile", []) if str(z).isdigit() and 1 <= int(z) <= 7})
+    s["program"].update(activ=bool(pr.get("activ")), ora=ora, zile=zile)
+    if s["program"]["activ"] and not s["smtp"]["server"]:
+        raise Eroare("Pentru trimiterea automată completează serverul SMTP.")
+    if s["program"]["activ"] and not zile:
+        raise Eroare("Alege cel puțin o zi pentru trimiterea automată.")
+    scrie_setare("email", s)
+    if "destinatari" in d:
+        with db() as c:
+            c.execute("DELETE FROM destinatari")
+            for x in d["destinatari"]:
+                resp, email = str(x.get("responsabil", "")).strip(), str(x.get("email", "")).strip()
+                if resp and email:
+                    c.execute("INSERT OR REPLACE INTO destinatari(responsabil, email) VALUES (?,?)",
+                              (resp, _adrese_valide(email, resp)))
+
+
+def destinatari():
+    """Toti responsabilii (din actiuni) + adresele lor. Daca nu e trecuta o adresa, se foloseste
+    emailul contului cu acelasi nume sau utilizator."""
+    with db() as c:
+        manual = {fara_diacritice(r["responsabil"]): (r["responsabil"], r["email"]) for r in c.execute("SELECT * FROM destinatari")}
+        conturi = {}
+        for u in c.execute("SELECT utilizator, nume, email FROM utilizatori WHERE activ=1 AND email<>''"):
+            conturi[fara_diacritice(u["nume"])] = u["email"]
+            conturi[fara_diacritice(u["utilizator"])] = u["email"]
+        resp = [r[0] for r in c.execute("SELECT DISTINCT responsabil FROM actiuni WHERE responsabil<>'' ORDER BY responsabil")]
+    rez, vazut = [], set()
+    for nume in resp + [v[0] for v in manual.values()]:
+        k = fara_diacritice(nume)
+        if k in vazut:
+            continue
+        vazut.add(k)
+        if k in manual:
+            rez.append({"responsabil": nume, "email": manual[k][1], "sursa": "manual"})
+        elif k in conturi:
+            rez.append({"responsabil": nume, "email": conturi[k], "sursa": "cont"})
+        else:
+            rez.append({"responsabil": nume, "email": "", "sursa": ""})
+    return sorted(rez, key=lambda x: fara_diacritice(x["responsabil"]))
+
+
+def setari_email_publice():
+    s = setari_email()
+    s["smtp"]["parola_setata"] = bool(s["smtp"].pop("parola"))
+    return {**s, "destinatari": destinatari(), "jurnal": jurnal_mail(), "ultima_auto": citeste_setare("ultima_trimitere_auto")}
+
+
+def jurnal_mail(limita=40):
+    with db() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM mail_jurnal ORDER BY id DESC LIMIT ?", (limita,))]
+
+
+def noteaza_mail(tip, catre, subiect, ok, eroare=""):
+    with db() as c:
+        c.execute("INSERT INTO mail_jurnal(la, tip, catre, subiect, ok, eroare) VALUES (?,?,?,?,?,?)",
+                  (acum(), tip, catre, subiect, 1 if ok else 0, str(eroare)[:500]))
+        c.execute("DELETE FROM mail_jurnal WHERE id NOT IN (SELECT id FROM mail_jurnal ORDER BY id DESC LIMIT 1000)")
+
+
+def pregateste_mailuri(s=None):
+    s = s or setari_email()
+    g = s["general"]
+    zile = int(g.get("zile_inainte_termen", 2))
+    link, subiect, cc, rezumat = g["link_tracker"], g["subiect"], g["cc"], g["rezumat_catre"]
+    adrese = {fara_diacritice(d["responsabil"]): d["email"] for d in destinatari() if d["email"]}
 
     azi = date.today()
     pe_resp, toate = {}, []
@@ -739,8 +884,7 @@ def pregateste_mailuri(cp):
             continue
         t = iso(a["termen"])
         zr = (date.fromisoformat(t) - azi).days if t else None
-        urg = a["prioritate"] == "Urgentă"
-        if not (urg or (zr is not None and zr <= zile)):
+        if not (a["prioritate"] == "Urgentă" or (zr is not None and zr <= zile)):
             continue
         a = dict(a, _z=zr)
         toate.append(a)
@@ -768,22 +912,121 @@ def pregateste_mailuri(cp):
         return (f"<div style='font:14px Segoe UI,Arial,sans-serif'><p>{titlu}</p>{tabel(items)}{l}"
                 f"<p style='color:#888;font-size:12px'>Mesaj automat {APP_NAME} – {azi:%d.%m.%Y}</p></div>")
 
-    mailuri = []
-    for resp, items in sorted(pe_resp.items()):
-        catre = adrese.get(fara_diacritice(resp))
-        if not catre:
-            print(f"  ! {resp}: nu are adresă în [destinatari] – apare doar în rezumat")
-            continue
-        mailuri.append({"catre": catre, "cc": cc, "subiect": f"{subiect} ({len(items)})",
-                        "html": corp(f"Bună ziua, {html.escape(resp)}. Aveți {len(items)} acțiuni care cer atenție:", items)})
+    mailuri, fara_adresa = [], []
+    if not g.get("doar_rezumat"):
+        for resp, items in sorted(pe_resp.items()):
+            catre = adrese.get(fara_diacritice(resp))
+            if not catre:
+                fara_adresa.append(resp)
+                continue
+            mailuri.append({"catre": catre, "cc": cc, "subiect": f"{subiect} ({len(items)})", "pentru": resp,
+                            "html": corp(f"Bună ziua, {html.escape(resp)}. Aveți {len(items)} acțiuni care cer atenție:", items)})
     if rezumat and toate:
-        mailuri.append({"catre": rezumat, "cc": "", "subiect": f"{subiect} – rezumat ({len(toate)})",
+        mailuri.append({"catre": rezumat, "cc": "", "subiect": f"{subiect} – rezumat ({len(toate)})", "pentru": "rezumat",
                         "html": corp(f"Rezumat: {len(toate)} acțiuni întârziate, aproape de termen sau urgente.", toate)})
-    return mailuri
+    return mailuri, fara_adresa
+
+
+def _conexiune_smtp(sm):
+    if not sm["server"]:
+        raise Eroare("Serverul SMTP nu este completat.")
+    if not sm["de_la"]:
+        raise Eroare("Adresa expeditorului nu este completată.")
+    port = int(sm["port"] or 25)
+    srv = (smtplib.SMTP_SSL(sm["server"], port, timeout=30) if sm["securitate"] == "ssl"
+           else smtplib.SMTP(sm["server"], port, timeout=30))
+    try:
+        if sm["securitate"] == "starttls":
+            srv.starttls()
+        if sm["utilizator"]:
+            srv.login(sm["utilizator"], sm["parola"])
+    except Exception:
+        srv.close()
+        raise
+    return srv
+
+
+def _trimite(srv, de_la, m):
+    msg = MIMEText(m["html"], "html", "utf-8")
+    msg["Subject"], msg["From"], msg["To"] = m["subiect"], de_la.split(";")[0].strip(), m["catre"]
+    if m.get("cc"):
+        msg["Cc"] = m["cc"]
+    dest = [x.strip() for x in re.split(r"[;,]", f"{m['catre']};{m.get('cc', '')}") if x.strip()]
+    srv.sendmail(msg["From"], dest, msg.as_string())
+
+
+def trimite_mailuri(tip="manual"):
+    """Trimite prin SMTP. Intoarce {trimise, erori, fara_adresa}."""
+    s = setari_email()
+    mailuri, fara = pregateste_mailuri(s)
+    rez = {"trimise": 0, "erori": [], "fara_adresa": fara}
+    if not mailuri:
+        noteaza_mail(tip, "-", "Nimic de trimis (nicio acțiune întârziată, apropiată sau urgentă)", True)
+        return rez
+    try:
+        srv = _conexiune_smtp(s["smtp"])
+    except Exception as e:  # noqa: BLE001
+        noteaza_mail(tip, "-", "Conectare la serverul de mail", False, e)
+        raise Eroare(f"Nu mă pot conecta la serverul de mail: {e}")
+    with srv:
+        for m in mailuri:
+            try:
+                _trimite(srv, s["smtp"]["de_la"], m)
+                rez["trimise"] += 1
+                noteaza_mail(tip, m["catre"], m["subiect"], True)
+            except Exception as e:  # noqa: BLE001
+                rez["erori"].append(f"{m['catre']}: {e}")
+                noteaza_mail(tip, m["catre"], m["subiect"], False, e)
+    return rez
+
+
+def trimite_test(catre):
+    catre = _adrese_valide(catre, "Destinatar test")
+    if not catre:
+        raise Eroare("Scrie adresa la care să trimit mailul de test.")
+    s = setari_email()
+    m = {"catre": catre, "cc": "", "subiect": f"{APP_NAME} – mail de test",
+         "html": f"<div style='font:14px Segoe UI,Arial,sans-serif'><p>Acesta este un mail de test trimis din {APP_NAME}.</p>"
+                 f"<p>Dacă l-ai primit, setările de email sunt corecte.</p><p style='color:#888;font-size:12px'>{acum()}</p></div>"}
+    try:
+        with _conexiune_smtp(s["smtp"]) as srv:
+            _trimite(srv, s["smtp"]["de_la"], m)
+    except Eroare:
+        raise
+    except Exception as e:  # noqa: BLE001
+        noteaza_mail("test", catre, m["subiect"], False, e)
+        raise Eroare(f"Trimiterea a eșuat: {e}")
+    noteaza_mail("test", catre, m["subiect"], True)
+
+
+def planificator_mail():
+    """Fir de executie: trimite automat mailurile in zilele si la ora din Setari."""
+    import time
+    while True:
+        try:
+            pr = setari_email()["program"]
+            acum_ = datetime.now()
+            if (pr.get("activ") and acum_.isoweekday() in pr.get("zile", [])
+                    and acum_.strftime("%H:%M") >= pr.get("ora", "07:30")
+                    and citeste_setare("ultima_trimitere_auto", {}).get("data") != acum_.date().isoformat()):
+                scrie_setare("ultima_trimitere_auto", {"data": acum_.date().isoformat(), "la": acum(), "rezultat": "în curs"})
+                try:
+                    r = trimite_mailuri("automat")
+                    txt = f"{r['trimise']} trimise" + (f", {len(r['erori'])} erori" if r["erori"] else "")
+                except Exception as e:  # noqa: BLE001
+                    txt = f"eroare: {e}"
+                scrie_setare("ultima_trimitere_auto", {"data": acum_.date().isoformat(), "la": acum(), "rezultat": txt})
+                print(f"  @ mail automat: {txt}")
+        except Exception as e:  # noqa: BLE001
+            print(f"  ! planificator mail: {e}")
+        time.sleep(30)
 
 
 def raport_mail():
-    mailuri = pregateste_mailuri(citeste_mail_ini())
+    """Pentru outlook-mailuri.bat: scrie mailurile in mail_out/."""
+    mailuri, fara = pregateste_mailuri()
+    for r in fara:
+        print(f"  ! {r}: nu are adresă de email (Setări → Email → Destinatari)")
     d = cale(MAIL_OUT_DIR)
     os.makedirs(d, exist_ok=True)
     for f in os.listdir(d):
@@ -795,40 +1038,28 @@ def raport_mail():
         with open(os.path.join(d, fn), "w", encoding="utf-8") as f:
             f.write(m["html"])
         index.append({"catre": m["catre"], "cc": m["cc"], "subiect": m["subiect"], "fisier": fn})
+        noteaza_mail("outlook", m["catre"], m["subiect"], True, "pregătit pentru Outlook")
     with open(os.path.join(d, "mailuri.json"), "w", encoding="utf-8") as f:
         json.dump(index, f, ensure_ascii=False, indent=2)
     print(f"{len(mailuri)} mailuri pregătite în {d}")
 
 
 def trimite_mail():
-    cp = citeste_mail_ini()
-    if not cp.has_section("smtp"):
-        raise SystemExit("Lipsește secțiunea [smtp] din mail.ini (sau folosește outlook-mailuri.bat).")
-    s = cp["smtp"]
-    mailuri = pregateste_mailuri(cp)
-    if not mailuri:
-        return print("Nimic de trimis.")
-    port = int(s.get("port", "25") or 25)
-    sec = fara_diacritice(s.get("securitate", "starttls"))
-    srv = smtplib.SMTP_SSL(s["server"], port, timeout=30) if sec == "ssl" else smtplib.SMTP(s["server"], port, timeout=30)
-    with srv:
-        if sec == "starttls":
-            srv.starttls()
-        if s.get("utilizator", "").strip():
-            srv.login(s["utilizator"].strip(), s.get("parola", ""))
-        for m in mailuri:
-            msg = MIMEText(m["html"], "html", "utf-8")
-            msg["Subject"], msg["From"], msg["To"] = m["subiect"], s["de_la"].strip(), m["catre"]
-            if m["cc"]:
-                msg["Cc"] = m["cc"]
-            dest = [x.strip() for x in re.split(r"[;,]", f"{m['catre']};{m['cc']}") if x.strip()]
-            srv.sendmail(msg["From"], dest, msg.as_string())
-            print(f"  trimis: {m['catre']} – {m['subiect']}")
-    print(f"{len(mailuri)} mailuri trimise.")
+    """Pentru mail.bat: trimite acum prin SMTP."""
+    try:
+        r = trimite_mailuri("manual (mail.bat)")
+    except Eroare as e:
+        raise SystemExit(str(e))
+    for x in r["fara_adresa"]:
+        print(f"  ! {x}: nu are adresă de email")
+    for x in r["erori"]:
+        print(f"  ! {x}")
+    print(f"{r['trimise']} mailuri trimise.")
 
 
 # =============================================================== HTTP
-PAGINI = {"/": "index.html", "/index.html": "index.html", "/grafice": "grafice.html", "/grafice.html": "grafice.html"}
+PAGINI = {"/": "index.html", "/index.html": "index.html", "/grafice": "grafice.html", "/grafice.html": "grafice.html",
+          "/setari": "setari.html", "/setari.html": "setari.html"}
 
 
 class Server(BaseHTTPRequestHandler):
@@ -918,11 +1149,16 @@ class Server(BaseHTTPRequestHandler):
                     return self.fisier(os.path.join(dir_atasamente(int(m.group(1))), nume), descarcare=nume)
                 if p == "/api/eu":
                     return self.json({"ok": True, "eu": public(self.utilizator()), "configurat": numar_utilizatori() > 0})
-                if p == "/api/utilizatori":
+                if p in ("/api/utilizatori", "/api/setari/email", "/api/setari/email/previzualizare"):
                     u = self.utilizator()
                     if not u or not u["admin"]:
                         raise Eroare("Doar pentru administratori.", 403)
-                    return self.json({"ok": True, "utilizatori": lista_utilizatori()})
+                    if p == "/api/utilizatori":
+                        return self.json({"ok": True, "utilizatori": lista_utilizatori()})
+                    if p == "/api/setari/email":
+                        return self.json({"ok": True, "email": setari_email_publice()})
+                    mailuri, fara = pregateste_mailuri()
+                    return self.json({"ok": True, "mailuri": mailuri, "fara_adresa": fara})
                 if p == "/sanatate":
                     return self.json({"ok": True, "app": APP_NAME})
                 return self.json({"ok": False, "eroare": "Pagina nu există."}, 404)
@@ -969,7 +1205,7 @@ class Server(BaseHTTPRequestHandler):
                     raise Eroare("Doar pentru administratori.", 403)
                 ut, act = m.group(1), m.group(2)
                 if ut is None:
-                    creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), bool(d.get("admin")))
+                    creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), bool(d.get("admin")), d.get("email", ""))
                 elif act == "parola":
                     schimba_parola(ut, d.get("parola"))
                 elif act == "sterge":
@@ -977,8 +1213,24 @@ class Server(BaseHTTPRequestHandler):
                         raise Eroare("Nu îți poți șterge propriul cont.")
                     sterge_utilizator(ut)
                 else:
-                    modifica_utilizator(ut, d.get("nume"), d.get("admin"), d.get("activ"))
+                    modifica_utilizator(ut, d.get("nume"), d.get("admin"), d.get("activ"), d.get("email"))
                 return self.json({"ok": True, "utilizatori": lista_utilizatori()})
+            if p.startswith("/api/setari/"):
+                if not u["admin"]:
+                    raise Eroare("Doar pentru administratori.", 403)
+                if p == "/api/setari/email":
+                    salveaza_setari_email(d)
+                    print(f"  ~ setari email salvate de {autor}")
+                    return self.json({"ok": True, "email": setari_email_publice()})
+                if p == "/api/setari/email/test":
+                    trimite_test(d.get("catre"))
+                    return self.json({"ok": True, "email": setari_email_publice()})
+                if p == "/api/setari/email/trimite":
+                    r = trimite_mailuri(f"manual ({autor})")
+                    return self.json({"ok": True, "rezultat": r, "email": setari_email_publice()})
+            if p == "/api/contul-meu":
+                modifica_utilizator(u["utilizator"], nume=d.get("nume"), email=d.get("email"))
+                return self.json({"ok": True, "eu": public(utilizator_din_token(self.token()))})
 
             if p == "/api/actiuni":
                 nr = adauga(d, autor)
@@ -1019,6 +1271,7 @@ def porneste():
         sys.stdout = sys.stderr = open(cale("server.log"), "a", encoding="utf-8", buffering=1)
     os.makedirs(cale(ATASAMENTE_DIR), exist_ok=True)
     srv = ThreadingHTTPServer((HOST, PORT), Server)
+    threading.Thread(target=planificator_mail, daemon=True, name="planificator-mail").start()
     print(f"{APP_NAME} rulează pe http://{HOST}:{PORT}/   (baza de date: {DB_PATH})")
     if not numar_utilizatori():
         print("  Niciun utilizator încă: deschide tracker-ul în browser și creează contul de administrator.")

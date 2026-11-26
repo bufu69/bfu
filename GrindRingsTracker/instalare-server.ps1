@@ -106,16 +106,13 @@ Register-ScheduledTask -TaskName $Task -Action $actiune -Trigger $declansator -S
 Start-ScheduledTask -TaskName $Task
 Write-Host "Serverul porneste singur odata cu calculatorul si ruleaza acum."
 
-# 5. Mail zilnic (optional)
-$r = Read-Host "`nProgramezi mailul zilnic prin Outlook (luni-vineri)? D/N"
+# 5. Mailuri: se seteaza din tracker (Setari -> Email); serverul le poate trimite singur prin SMTP.
+#    Optional, daca firma nu permite SMTP: trimitere zilnica prin Outlook-ul acestui utilizator.
+Write-Host "`nMailurile (server, destinatari, trimitere automata) se seteaza din tracker: Setari -> Email."
+$r = Read-Host "Vrei in schimb trimitere zilnica prin Outlook-ul de pe acest calculator (luni-vineri)? D/N"
 if ($r -match '^[dDyY]') {
   $ora = Read-Host "Ora (ex. 07:30)"
   if (-not $ora) { $ora = "07:30" }
-  if (-not (Test-Path (Join-Path $Dir "mail.ini"))) {
-    Copy-Item (Join-Path $Dir "mail-exemplu.ini") (Join-Path $Dir "mail.ini")
-    Write-Host "Am creat mail.ini - completeaza adresele (se deschide acum)." -ForegroundColor Yellow
-    Start-Process notepad (Join-Path $Dir "mail.ini")
-  }
   $user = "$env:USERDOMAIN\$env:USERNAME"
   Unregister-ScheduledTask -TaskName "$Task-Mail" -Confirm:$false -ErrorAction SilentlyContinue
   $a2 = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"`"$Dir\outlook-mailuri.bat`" /auto`"" -WorkingDirectory $Dir
@@ -123,6 +120,7 @@ if ($r -match '^[dDyY]') {
   $p2 = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive
   Register-ScheduledTask -TaskName "$Task-Mail" -Action $a2 -Trigger $t2 -Principal $p2 -Description "Mail zilnic Grind Rings (Outlook)" | Out-Null
   Write-Host "Mailul pleaca luni-vineri la $ora prin Outlook, cand $user este logat."
+  Write-Host "Destinatarii se seteaza in tracker: Setari -> Email -> Destinatari."
 }
 
 Start-Sleep -Seconds 2
