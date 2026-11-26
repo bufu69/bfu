@@ -11,8 +11,14 @@ if %errorlevel%==0 (
   start "" "http://localhost:8092/"
   exit /b 0
 )
-where py >nul 2>&1 && (set "PY=py -3") || (set "PY=python")
+set "PY="
+if exist "%~dp0python.txt" set /p PY=<"%~dp0python.txt"
+if defined PY if not exist "%PY%" set "PY="
+if not defined PY if exist "%~dp0python\python.exe" set "PY=%~dp0python\python.exe"
+if not defined PY if exist "%~dp0python.exe" set "PY=%~dp0python.exe"
+if not defined PY for /f "delims=" %%E in ('py -3 -c "import sys;print(sys.executable)" 2^>nul') do set "PY=%%E"
+if not defined PY set "PY=python"
 echo Pornesc serverul... (inchide fereastra ca sa-l opresti)
 start "" cmd /c "timeout /t 3 >nul & start http://localhost:8092/"
-%PY% server.py
+"%PY%" server.py
 pause

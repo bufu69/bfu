@@ -5,6 +5,8 @@ Tracker pentru actiunile de la rectificarea inelelor. Server propriu, independen
 pe portul 8092. Datele sunt intr-o baza de date proprie (grind_rings.db).
 Nu are nevoie de Excel, de internet sau de alt server - doar de Python 3
 (https://www.python.org/downloads/ , cu bifa "Add python.exe to PATH").
+Python poate fi si direct in folderul tracker-ului (ex. GrindRingsTracker\python\python.exe,
+versiunea "embeddable" de pe python.org) - instalarea il gaseste singura si il foloseste.
 
   Tracker:  http://NUME-CALCULATOR:8092/
   Grafice:  http://NUME-CALCULATOR:8092/grafice
@@ -48,7 +50,9 @@ server.log                    jurnalul serverului cand ruleaza in fundal
 
 INSTALARE
 ---------
-1. Copiaza folderul pe calculatorul-server (ex. C:\GrindRingsTracker).
+1. Copiaza folderul pe calculatorul-server, intr-un folder LOCAL (ex. C:\GrindRingsTracker),
+   nu in OneDrive / Desktop sincronizat. Daca il pornesti din OneDrive, instalarea se ofera
+   sa il copieze singura in C:\GrindRingsTracker.
 2. Dublu-click pe instalare-server.bat si accepta cererea de Administrator.
 3. Adauga primul editor (nume + cod) cand te intreaba.
 4. Gata - serverul porneste singur la fiecare pornire a calculatorului.
