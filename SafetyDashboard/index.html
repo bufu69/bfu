@@ -96,7 +96,13 @@ header.antet {
 .tile.portocaliu { border-color: #e45a2c; background: linear-gradient(135deg, rgba(132, 40, 22, .82), rgba(76, 22, 14, .82)); box-shadow: inset 0 0 18px rgba(228, 90, 44, .2); }
 .poza { position: relative; margin-top: auto; min-height: 12rem; flex: 1 1 12rem; max-height: 17rem; overflow: hidden; border-top: 1px solid rgba(95, 211, 255, .25); }
 .poza > svg, .poza > .img { position: absolute; inset: 0; width: 100%; height: 100%; }
-.poza > .img { background-size: cover; background-position: center; }
+.poza > .img { background-size: cover; background-position: left bottom; }
+/* imaginile implicite (din macheta) au textul deja in fotografie */
+.poza.implicita .text { display: none; }
+.poza.implicita { flex: 0 0 auto; min-height: 0; max-height: none; }
+.panou.stanga .poza.implicita { aspect-ratio: 201 / 206; }
+.panou.dreapta .poza.implicita { aspect-ratio: 176 / 147; }
+.poza.implicita::after { background: none; }
 .poza::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4, 14, 24, .15) 30%, rgba(4, 14, 24, .75) 100%); }
 .poza .text { position: absolute; left: .95rem; right: .6rem; bottom: .95rem; z-index: 1; font-family: var(--cond); font-weight: 700; font-size: 1.45rem; line-height: 1.02; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); letter-spacing: .01em; }
 .poza .text::after { content: ""; display: block; width: 2.4rem; height: .22rem; background: var(--yellow); margin-top: .45rem; border-radius: 2px; }
@@ -651,8 +657,11 @@ function aplicaConfig() {
   f.classList.toggle("implicit", !im.fundal); f.style.backgroundImage = im.fundal ? `url("${im.fundal}")` : "";
   $("hala").classList.toggle("ascuns", !!im.fundal); $("fundal").classList.toggle("cu-foto", !!im.fundal);
   for (const [k, svg, img] of [["stanga", "svgStanga", "imgStanga"], ["dreapta", "svgDreapta", "imgDreapta"]]) {
-    $(svg).classList.toggle("ascuns", !!im[k]); $(img).classList.toggle("ascuns", !im[k]);
-    $(img).style.backgroundImage = im[k] ? `url("${im[k]}")` : "";
+    // fara imagine incarcata: fotografia implicita din macheta (cu textul inclus)
+    const src = im[k] || `implicit/${k}.jpg`;
+    $(svg).classList.add("ascuns"); $(img).classList.remove("ascuns");
+    $(img).style.backgroundImage = `url("${src}")`;
+    $(img).parentElement.classList.toggle("implicita", !im[k]);
   }
 }
 
@@ -851,7 +860,7 @@ function cereLogin(init = false) {
 
 /* ---------------- setari ---------------- */
 const ETICHETE_TEXTE = { companie: "Nume companie (logo text)", locatie: "Locație (sub ceas)", slogan_dreapta: "Slogan dreapta sus (| = rând nou)", banda: "Text pe banda galben-negru",
-  stanga_jos: "Text imagine stânga (| = rând nou)", dreapta_jos: "Text imagine dreapta (| = rând nou)", nota_jos: "Nota de jos" };
+  stanga_jos: "Text imagine stânga – doar pe o imagine încărcată de voi (| = rând nou)", dreapta_jos: "Text imagine dreapta – doar pe o imagine încărcată de voi (| = rând nou)", nota_jos: "Nota de jos" };
 function deschideSetari() {
   const admin = eu && eu.rol === "admin";
   document.querySelectorAll(".s-taburi .doar-admin").forEach(b => b.classList.toggle("ascuns", !admin));
@@ -876,7 +885,7 @@ $("btnSalveazaTexte").onclick = async () => {
 $("efecte").onchange = () => { document.body.classList.toggle("fara-efecte", !$("efecte").checked); try { localStorage.setItem("sdEfecte", $("efecte").checked ? "1" : "0"); } catch (e) {} };
 function deseneazaImagini() {
   const NUME = { fundal: ["Fundal pagină", "fotografie a halei, recomandat 1920×1080"], stanga: ["Imagine stânga jos", "ex. rulmenți, recomandat portret"], dreapta: ["Imagine dreapta jos", "ex. peisaj / natură"], logo: ["Logo", "PNG cu fundal transparent, în locul textului"] };
-  $("listaImagini").innerHTML = Object.entries(NUME).map(([k, [t, h]]) => `<div class="img-rand"><div class="prev" style="${CFG.imagini[k] ? `background-image:url('${esc(CFG.imagini[k])}')` : ""}">${CFG.imagini[k] ? "" : "implicit"}</div>
+  $("listaImagini").innerHTML = Object.entries(NUME).map(([k, [t, h]]) => `<div class="img-rand"><div class="prev" style="${CFG.imagini[k] ? `background-image:url('${esc(CFG.imagini[k])}')` : (k === "stanga" || k === "dreapta") ? `background-image:url('implicit/${k}.jpg')` : ""}">${CFG.imagini[k] || k === "stanga" || k === "dreapta" ? "" : "implicit"}</div>
     <div><b>${t}</b><small>${h}</small></div><div><button class="btn galben" data-img="${k}">Încarcă</button>${CFG.imagini[k] ? ` <button class="btn inchis" data-img-sterge="${k}">Implicit</button>` : ""}</div></div>`).join("");
 }
 let imgCheie = null;

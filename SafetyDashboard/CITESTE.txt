@@ -15,6 +15,7 @@ FISIERE
 server.py                     serverul (pagina, baza de date, import Excel, utilizatori)
 index.html                    dashboard-ul
 fonts\                        fonturile paginii (merge si fara internet)
+implicit\                     fotografiile implicite de jos (rulmenti / munte), cu textul inclus
 CITESTE.txt                   acest fisier
 
 instalare-server.bat / .ps1   INSTALARE: Python, cont administrator, firewall, pornire automata
@@ -57,7 +58,8 @@ SETARI (Autentificare -> butonul cu numele tau)
 ------
 - Texte: numele companiei, locatia de sub ceas, sloganurile, textul de pe banda.
 - Imagini: fundal (fotografia halei), imaginea din stanga jos, din dreapta jos, logo.
-  Fara imagini se folosesc ilustratiile implicite.
+  Fara imagini proprii se folosesc fotografiile din macheta (cu textul inclus in poza);
+  textele "imagine stanga / dreapta" se aplica doar peste imaginile incarcate de voi.
 - Import Excel: inlocuieste sau adauga datele din "Dashboard safety.xlsm".
 - Utilizatori (administratori): Editor = adauga si modifica datele; Administrator = si setari,
   utilizatori, import. Ai uitat parola? editori.bat pe calculatorul-server.

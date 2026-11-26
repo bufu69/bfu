@@ -664,6 +664,8 @@ class Server(BaseHTTPRequestHandler):
             if p.startswith("/fonts/"):
                 f = os.path.basename(p)
                 return self.fisier(os.path.join(BASE_DIR, "fonts", f), "text/css; charset=utf-8" if f.endswith(".css") else "font/woff2")
+            if p.startswith("/implicit/"):
+                return self.fisier(os.path.join(BASE_DIR, "implicit", os.path.basename(p)))
             if p.startswith("/imagini/"):
                 f = os.path.basename(p)
                 return self.fisier(os.path.join(cale(IMAGINI_DIR), f))

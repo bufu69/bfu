@@ -34,6 +34,7 @@ if ($Dst -ne $Src) {
     Write-Host "  actualizat: $($_.Name)"
   }
   if (Test-Path (Join-Path $Src "fonts")) { Copy-Item (Join-Path $Src "fonts") -Destination $Dst -Recurse -Force; Write-Host "  actualizat: fonts\" }
+  if (Test-Path (Join-Path $Src "implicit")) { Copy-Item (Join-Path $Src "implicit") -Destination $Dst -Recurse -Force; Write-Host "  actualizat: implicit\" }
   Write-Host "Versiunea veche a programului: $bk"
 } else {
   Write-Host "Rulezi din folderul instalat - doar repornesc serverul."
