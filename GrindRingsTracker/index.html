@@ -485,11 +485,13 @@ $("antet").addEventListener("click", e => {
 $("corp").addEventListener("click", e => { const tr = e.target.closest("tr[data-nr]"); if (tr) deschideActiune(+tr.dataset.nr); });
 
 /* ---------- autentificare (utilizator + parola) ---------- */
+function are(perm) { return !!(st.editor && st.editor.permisiuni && st.editor.permisiuni.includes(perm)); }
 function zonaEditor() {
   const u = st.editor;
+  $("btnNou").classList.toggle("ascuns", !!u && !are("adauga"));
   $("zonaEditor").innerHTML = u
-    ? `<span class="meniu-user"><span class="editor-chip" title="Autentificat ca ${esc(u.utilizator)}">✓ ${esc(u.nume)}</span>
-       <a class="btn mic" href="setari${u.admin ? "" : "#cont"}" title="${u.admin ? "Conturi, email, contul meu" : "Contul meu"}">⚙ Setări</a>
+    ? `<span class="meniu-user"><span class="editor-chip" title="Autentificat ca ${esc(u.utilizator)}">✓ ${esc(u.nume)} <small style="font-weight:500;opacity:.8">· ${esc(u.rol_nume)}</small></span>
+       <a class="btn mic" href="setari" title="Contul meu${u.permisiuni.includes("conturi") ? ", conturi" : ""}${u.permisiuni.includes("email") ? ", email" : ""}">⚙ Setări</a>
        <button class="btn mic" id="btnIesire">Ieșire</button></span>`
     : `<button class="btn" id="btnIntra">Autentificare</button>`;
 }
@@ -561,17 +563,21 @@ $("pInchide").addEventListener("click", inchidePanou);
 $("voal").addEventListener("click", inchidePanou);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("panou").classList.contains("deschis") && !document.querySelector("dialog[open]")) inchidePanou(); });
 
-function campuriFormular(a, blocat) {
-  const dis = blocat ? "disabled" : "";
-  const sel = (k, vals) => `<select id="f_${k}" ${dis}>${vals.map(v => `<option ${a[k] === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
-  const inp = (k, list, tip) => `<input id="f_${k}" ${tip ? `type="${tip}"` : ""} value="${esc(a[k] || "")}" ${list ? `list="${list}"` : ""} ${dis} autocomplete="off">`;
+// dr: undefined = acțiune nouă; false = neautentificat (doar citire); altfel drepturile pe acțiune
+function campuriFormular(a, dr) {
+  const nou = dr === undefined;
+  const poate = k => nou || (dr && ((k === "termen" || k === "prioritate") ? dr.termen_prioritate : dr.modifica));
+  const pot_inchide = nou ? are("inchide") : (dr && dr.inchide);
+  const dis = k => poate(k) && !(k === "stadiu" && a.stadiu === "Închis" && !pot_inchide) ? "" : "disabled";
+  const sel = (k, vals) => `<select id="f_${k}" ${dis(k)}>${vals.filter(v => !(k === "stadiu" && v === "Închis" && !pot_inchide && a.stadiu !== "Închis")).map(v => `<option ${a[k] === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
+  const inp = (k, list, tip) => `<input id="f_${k}" ${tip ? `type="${tip}"` : ""} value="${esc(a[k] || "")}" ${list ? `list="${list}"` : ""} ${dis(k)} autocomplete="off">`;
   return `<div class="formular">
     <div class="camp"><label>Mașină / Linie <span class="obl">*</span></label>${inp("masina", "dlMasina")}</div>
     <div class="camp"><label>Reper (cod inel)</label>${inp("reper", "dlReper")}</div>
     <div class="camp"><label>Comandă</label>${inp("comanda")}</div>
     <div class="camp"><label>Client</label>${inp("client", "dlClient")}</div>
-    <div class="camp lat"><label>Problemă <span class="obl">*</span></label><textarea id="f_problema" ${dis}>${esc(a.problema || "")}</textarea></div>
-    <div class="camp lat"><label>Acțiune <span class="obl">*</span></label><textarea id="f_actiune" ${dis}>${esc(a.actiune || "")}</textarea></div>
+    <div class="camp lat"><label>Problemă <span class="obl">*</span></label><textarea id="f_problema" ${dis("problema")}>${esc(a.problema || "")}</textarea></div>
+    <div class="camp lat"><label>Acțiune <span class="obl">*</span></label><textarea id="f_actiune" ${dis("actiune")}>${esc(a.actiune || "")}</textarea></div>
     <div class="camp"><label>Responsabil <span class="obl">*</span></label>${inp("responsabil", "dlResponsabil")}</div>
     <div class="camp"><label>Termen</label>${inp("termen", null, "date")}</div>
     <div class="camp"><label>Stadiu</label>${sel("stadiu", ["Deschis", "În lucru", "Închis"])}</div>
@@ -590,7 +596,7 @@ function actiuneNoua() {
   $("pTitlu").textContent = "Acțiune nouă";
   const implicit = { stadiu: "Deschis", prioritate: "Normală", termen: (() => { const d = new Date(st.azi + "T00:00:00"); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })() };
   $("pContinut").innerHTML = (st.editor ? "" : `<div class="nota-blocat">Vei fi rugat să te autentifici la salvare.</div>`) +
-    campuriFormular(implicit, false) +
+    campuriFormular(implicit) +
     `<div class="camp" style="margin-top:10px"><label>Comentariu (opțional)</label><textarea id="f_comentariu"></textarea></div><div class="mesaj" id="pMesaj"></div>`;
   $("pSubsol").innerHTML = `<button class="btn primar" id="pSalveaza">Salvează acțiunea</button><button class="btn" id="pAnuleaza">Anulează</button>`;
   $("pAnuleaza").onclick = inchidePanou;
@@ -620,29 +626,32 @@ async function deschideActiune(nr) {
   let j;
   try { j = await api(`api/actiuni/${nr}?t=${Date.now()}`); }
   catch (e) { toast(e.message); return; }
-  const a = j.actiune, blocat = !st.editor;
+  const a = j.actiune, dr = st.editor ? j.drepturi : false, blocat = !st.editor;
+  const poateSalva = dr && (dr.modifica || dr.termen_prioritate);
   $("pTitlu").innerHTML = `<span class="nr">#${a.nr}</span> ${esc(a.masina)}`;
   $("pContinut").innerHTML = `
     <div class="meta">Adăugată ${ro(a.data)} de ${esc(a.creat_de || "—")}${a.modificat_la ? ` · modificată ${ro(a.modificat_la.slice(0, 10))} ${a.modificat_la.slice(11, 16)}` : ""} · ${badgeStadiu(a.stadiu)} ${badgePr(a.prioritate)}</div>
-    ${blocat ? `<div class="nota-blocat">Doar citire. <a href="#" id="lnkIntra">Autentifică-te</a> ca să modifici.</div>` : ""}
-    ${campuriFormular(a, blocat)}
+    ${blocat ? `<div class="nota-blocat">Doar citire. <a href="#" id="lnkIntra">Autentifică-te</a> ca să modifici.</div>`
+      : !dr.modifica ? `<div class="nota-blocat">Rolul tău (${esc(st.editor.rol_nume)}) ${dr.termen_prioritate ? "poate schimba doar termenul și prioritatea" : "nu poate modifica"} la această acțiune.</div>` : ""}
+    ${campuriFormular(a, dr)}
     <div class="mesaj" id="pMesaj"></div>
     <div class="sectiune"><h3>Comentarii <span class="nr-mic">${j.comentarii.length}</span></h3>
       ${j.comentarii.map(c => `<div class="coment"><div class="cine"><b>${esc(c.autor)}</b> · ${ro(c.la.slice(0, 10))} ${c.la.slice(11, 16)}</div><div class="txt">${esc(c.text)}</div></div>`).join("") || `<div class="secundar" style="margin-bottom:8px">Niciun comentariu.</div>`}
-      <div class="adauga-com"><textarea id="txtCom" placeholder="Scrie un comentariu…"></textarea><button class="btn" id="btnCom">Trimite</button></div>
+      ${!dr || dr.comenteaza ? `<div class="adauga-com"><textarea id="txtCom" placeholder="Scrie un comentariu…"></textarea><button class="btn" id="btnCom">Trimite</button></div>` : ""}
     </div>
     <div class="sectiune"><h3>Atașamente <span class="nr-mic">${j.atasamente.length}</span></h3>
       <div class="atas">${j.atasamente.map(f => `<a href="atasamente/${a.nr}/${encodeURIComponent(f)}" target="_blank" rel="noopener" title="${esc(f)}">📎 ${esc(f)}</a>`).join("") || `<span class="secundar">Niciun fișier.</span>`}</div>
-      <button class="btn mic" id="btnAtas">+ Atașează fișier</button><input type="file" id="inFisier" class="ascuns">
+      ${!dr || dr.comenteaza ? `<button class="btn mic" id="btnAtas">+ Atașează fișier</button><input type="file" id="inFisier" class="ascuns">` : ""}
     </div>
     <div class="sectiune istoric"><h3>Istoric</h3><ul>
       ${j.istoric.map(h => `<li><span class="cand">${ro(h.la.slice(0, 10))} ${h.la.slice(11, 16)}</span> · <b>${esc(h.autor)}</b> — ${textIstoric(h)}</li>`).join("")}
     </ul></div>`;
   $("pSubsol").innerHTML = blocat
     ? `<button class="btn primar" id="pIntra">Autentificare pentru modificare</button>`
-    : `<button class="btn primar" id="pSalveaza">Salvează modificările</button>
-       ${a.stadiu !== "Închis" ? `<button class="btn" id="pInchideAct">✓ Închide acțiunea</button>` : `<button class="btn" id="pRedeschide">Redeschide</button>`}
-       <span style="flex:1"></span><button class="btn pericol" id="pSterge">Șterge</button>`;
+    : `${poateSalva ? `<button class="btn primar" id="pSalveaza">Salvează modificările</button>` : ""}
+       ${dr.inchide ? (a.stadiu !== "Închis" ? `<button class="btn" id="pInchideAct">✓ Închide acțiunea</button>` : `<button class="btn" id="pRedeschide">Redeschide</button>`) : ""}
+       <span style="flex:1"></span>${dr.sterge ? `<button class="btn pericol" id="pSterge">Șterge</button>` : ""}`;
+  $("pSubsol").classList.toggle("ascuns", !blocat && !poateSalva && !dr.inchide && !dr.sterge);
 
   const reintra = async () => { if (await cereLogin()) deschideActiune(nr); };
   $("lnkIntra")?.addEventListener("click", e => { e.preventDefault(); reintra(); });
@@ -661,14 +670,14 @@ async function deschideActiune(nr) {
     try { await api(`api/actiuni/${nr}/sterge`, {}); toast(`Acțiunea #${nr} a fost ștearsă.`); inchidePanou(); incarca(); }
     catch (e) { mesaj(e.message, false); }
   });
-  $("btnCom").addEventListener("click", async () => {
+  $("btnCom")?.addEventListener("click", async () => {
     const t = $("txtCom").value.trim(); if (!t) return;
     if (!(await asiguraEditor())) return;
     try { await api(`api/actiuni/${nr}/comentariu`, { text: t }); await incarca(); deschideActiune(nr); }
     catch (e) { toast(e.message); }
   });
-  $("btnAtas").addEventListener("click", async () => { if (await asiguraEditor()) $("inFisier").click(); });
-  $("inFisier").addEventListener("change", async () => {
+  $("btnAtas")?.addEventListener("click", async () => { if (await asiguraEditor()) $("inFisier").click(); });
+  $("inFisier")?.addEventListener("change", async () => {
     const f = $("inFisier").files[0]; if (!f) return;
     if (f.size > 25 * 1024 * 1024) { toast("Fișierul depășește 25 MB."); return; }
     toast(`Se încarcă „${f.name}”…`);

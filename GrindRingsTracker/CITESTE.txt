@@ -26,7 +26,7 @@ FISIERE
 server.py                     serverul (pagini, baza de date, atasamente, mailuri)
 index.html                    tracker-ul: lista, filtre, adaugare, modificare, comentarii, atasamente
 grafice.html                  grafice: deschise vs inchise, stadiu, prioritate, masini, responsabili
-setari.html                   setari: Contul meu, Conturi, Email (doar administratorii vad Conturi si Email)
+setari.html                   setari: Contul meu, Conturi, Roluri, Email (dupa drepturile rolului)
 CITESTE.txt                   acest fisier
 
 instalare-server.bat / .ps1   INSTALARE: Python, cont administrator, firewall, pornire automata,
@@ -73,14 +73,23 @@ FOLOSIRE
 - Export: descarca toate actiunile intr-un CSV care se deschide in Excel.
 
 
-UTILIZATORI
------------
-- Primul cont creat este ADMINISTRATOR. Administratorii au in tracker butonul "Utilizatori":
-  utilizator nou, parola noua, fa / scoate administrator, dezactiveaza, sterge.
-- Fiecare isi poate schimba parola din butonul "Parola".
-- Numele afisat apare la comentarii si in istoric.
+UTILIZATORI SI ROLURI
+---------------------
+- Primul cont creat este ADMINISTRATOR. Conturile se gestioneaza din Setari -> Conturi:
+  cont nou (cu rol si email), parola noua, schimbare rol, dezactivare, stergere.
+- Fiecare isi schimba numele, emailul si parola din Setari -> Contul meu.
 - Ai uitat parola de administrator? editori.bat -> 2 = schimba parola (pe calculatorul-server).
 - Parolele se pastreaza criptat (hash), niciodata in clar.
+
+Roluri si drepturi implicite (se schimba din Setari -> Roluri, doar de Administrator):
+  Administrator  - tot, inclusiv conturi, roluri si email
+  Manager        - adauga, modifica orice, termen/prioritate, inchide, STERGE, comentarii, email
+  Coordonator    - adauga, modifica orice, termen/prioritate, inchide, comentarii
+  Zone Leader    - adauga, modifica si inchide doar actiunile PROPRII, comentarii
+  Planificator   - adauga, schimba termenul si prioritatea la orice actiune, comentarii
+"Proprii" = actiunile unde e responsabil (acelasi nume sau utilizator) sau pe care le-a creat.
+Doar un Administrator poate numi alti administratori. Trebuie sa ramana mereu cel putin unul.
+Fiecare vede in tracker doar butoanele si campurile pe care are voie sa le foloseasca.
 
 
 IMPORT DIN EXCEL
@@ -98,7 +107,8 @@ Totul se seteaza din tracker: Setari -> Email (doar administratorii).
 1. Server de mail (SMTP): server, port, securitate, expeditor, utilizator si parola.
    Office 365: smtp.office365.com, port 587, STARTTLS. Intreaba IT-ul pentru serverul firmei.
 2. Ce se trimite: fiecare responsabil primeste actiunile lui intarziate, cu termen in
-   urmatoarele N zile sau urgente; "Rezumat catre" primeste lista completa.
+   urmatoarele N zile sau urgente; "Rezumat catre" primeste lista completa. Rezumatul poate
+   merge automat si la toti utilizatorii cu anumite roluri (ex. toti Managerii).
 3. Destinatari: adresa fiecarui responsabil. Daca responsabilul are cont cu email
    (acelasi nume sau utilizator), adresa din cont se foloseste automat.
 4. Trimitere automata: bifezi, alegi zilele si ora - serverul trimite singur.

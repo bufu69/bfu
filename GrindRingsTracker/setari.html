@@ -102,6 +102,13 @@ td .btn { margin: 2px 4px 2px 0; }
 .gol { text-align: center; color: var(--ink-3); padding: 20px; }
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 8px; font-size: 13px; z-index: 50; display: none; max-width: calc(100% - 32px); }
 .login-card { max-width: 420px; margin: 40px auto; }
+.matrice td, .matrice th { text-align: center; }
+.matrice td:first-child, .matrice th:first-child { text-align: left; }
+.matrice input { width: 18px; height: 18px; cursor: pointer; }
+.matrice input:disabled { cursor: not-allowed; }
+.lista-drepturi { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 13.5px; }
+td select { height: 32px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--panel); padding: 0 6px; }
+.roluri-bife { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .login-card .camp { margin-bottom: 10px; }
 </style>
 </head>
@@ -133,8 +140,9 @@ td .btn { margin: 2px 4px 2px 0; }
   <div id="continut" class="ascuns">
     <div class="taburi" role="tablist">
       <button role="tab" data-tab="cont" aria-selected="true">Contul meu</button>
-      <button role="tab" data-tab="conturi" class="doar-admin">Conturi</button>
-      <button role="tab" data-tab="email" class="doar-admin">Email</button>
+      <button role="tab" data-tab="conturi" data-perm="conturi">Conturi</button>
+      <button role="tab" data-tab="roluri" data-perm="conturi">Roluri</button>
+      <button role="tab" data-tab="email" data-perm="email">Email</button>
     </div>
 
     <!-- ============ CONTUL MEU ============ -->
@@ -144,8 +152,10 @@ td .btn { margin: 2px 4px 2px 0; }
         <p class="desc">Numele apare la comentarii și în istoric. Pe adresa de email primești mailurile cu acțiunile tale.</p>
         <form id="formCont" class="grila">
           <div class="camp"><label>Utilizator</label><input id="cUser" disabled></div>
+          <div class="camp"><label>Rol</label><input id="cRol" disabled></div>
           <div class="camp"><label for="cNume">Nume afișat</label><input id="cNume"></div>
-          <div class="camp lat"><label for="cEmail">Email</label><input id="cEmail" type="email" placeholder="nume@firma.ro" autocomplete="email"></div>
+          <div class="camp"><label for="cEmail">Email</label><input id="cEmail" type="email" placeholder="nume@firma.ro" autocomplete="email"></div>
+          <div class="lat"><span class="secundar">Ce poți face cu rolul tău:</span><ul class="lista-drepturi" id="cDrepturi"></ul></div>
           <div class="lat"><button class="btn primar" type="submit">Salvează</button></div>
         </form>
         <div class="mesaj" id="cMesaj"></div>
@@ -168,7 +178,7 @@ td .btn { margin: 2px 4px 2px 0; }
     <section data-panou="conturi" class="ascuns">
       <div class="card">
         <h2>Conturi</h2>
-        <p class="desc">Toți utilizatorii activi pot adăuga și modifica acțiuni. Administratorii au acces și la Setări (conturi și email).</p>
+        <p class="desc">Ce poate face fiecare rol vezi în fila <a href="#roluri" data-mergi="roluri">Roluri</a>. Rolul se schimbă direct din tabel.</p>
         <div class="tabel"><table id="tblUtil"></table></div>
         <div class="mesaj" id="uMesaj"></div>
       </div>
@@ -179,12 +189,22 @@ td .btn { margin: 2px 4px 2px 0; }
           <div class="camp"><label>Nume afișat</label><input id="unNume" placeholder="ex. Ana Ionescu"></div>
           <div class="camp"><label>Email</label><input id="unEmail" type="email" placeholder="ana.ionescu@firma.ro"></div>
           <div class="camp"><label>Parolă inițială (minim 6)</label><input id="unParola" type="text" autocomplete="off"></div>
-          <div class="lat rand" style="justify-content:space-between">
-            <label class="bifa"><input type="checkbox" id="unAdmin"> Administrator</label>
-            <button class="btn primar" type="submit">Creează contul</button>
-          </div>
+          <div class="camp"><label for="unRol">Rol</label><select id="unRol"></select></div>
+          <div class="camp" style="display:flex;align-items:flex-end;justify-content:flex-end"><button class="btn primar" type="submit">Creează contul</button></div>
         </form>
         <div class="mesaj" id="unMesaj"></div>
+      </div>
+    </section>
+
+    <!-- ============ ROLURI ============ -->
+    <section data-panou="roluri" class="ascuns">
+      <div class="card">
+        <h2>Roluri și drepturi</h2>
+        <p class="desc" id="rDesc">Bifează ce poate face fiecare rol. Administratorul are mereu toate drepturile.</p>
+        <div class="tabel"><table class="matrice" id="tblRoluri"></table></div>
+        <div style="margin-top:12px" id="rBtnRand"><button class="btn primar" id="btnSalveazaRoluri">Salvează drepturile</button>
+          <button class="btn" id="btnRoluriImplicit">Revino la valorile implicite</button></div>
+        <div class="mesaj" id="rMesaj"></div>
       </div>
     </section>
 
@@ -217,6 +237,9 @@ td .btn { margin: 2px 4px 2px 0; }
               <div class="rand"><div class="camp" style="margin:0"><input id="eLink" placeholder="http://NUME-CALCULATOR:8092/"></div><button type="button" class="btn" id="btnLinkCurent">Folosește adresa curentă</button></div></div>
             <div class="camp"><label for="eRezumat">Rezumat către</label><input id="eRezumat" placeholder="sef.sectie@firma.ro; alt@firma.ro"><div class="ajutor">Gol = fără rezumat. Mai multe adrese: separate cu ;</div></div>
             <div class="camp"><label for="eCc">Copie (CC) la mailurile responsabililor</label><input id="eCc" placeholder="gol = fără copie"></div>
+            <div class="camp lat"><label>Rezumatul merge și la toți utilizatorii cu rolul</label>
+              <div class="roluri-bife" id="eRezRoluri"></div>
+              <div class="ajutor">Se folosește adresa de email din contul fiecăruia (Conturi).</div></div>
             <div class="lat"><label class="bifa"><input type="checkbox" id="eDoarRezumat"> Trimite doar rezumatul (fără mailuri individuale către responsabili)</label></div>
           </div>
         </div>
@@ -278,7 +301,15 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const ro = d => d ? d.slice(8, 10) + "." + d.slice(5, 7) + "." + d.slice(0, 4) + (d.length > 10 ? " " + d.slice(11, 16) : "") : "";
 const ZILE = [[1, "Lun"], [2, "Mar"], [3, "Mie"], [4, "Joi"], [5, "Vin"], [6, "Sâm"], [7, "Dum"]];
-let eu = null, utilizatori = [], emailSet = null, modificat = false;
+let eu = null, utilizatori = [], emailSet = null, modificat = false, roluriInfo = null;
+const are = perm => !!(eu && eu.permisiuni && eu.permisiuni.includes(perm));
+async function incarcaRoluri() { if (!roluriInfo) roluriInfo = await api("api/roluri?t=" + Date.now()); return roluriInfo; }
+const IMPLICIT = {
+  manager: ["adauga", "modifica_toate", "termen_prioritate", "inchide", "sterge", "comenteaza", "email"],
+  coordonator: ["adauga", "modifica_toate", "termen_prioritate", "inchide", "comenteaza"],
+  zone_leader: ["adauga", "modifica_proprii", "inchide", "comenteaza"],
+  planificator: ["adauga", "termen_prioritate", "comenteaza"],
+};
 
 function toast(t) { const el = $("toast"); el.textContent = t; el.style.display = "block"; clearTimeout(toast._t); toast._t = setTimeout(() => el.style.display = "none", 3200); }
 function mesaj(id, text, tip) { const m = $(id); m.textContent = text; m.className = "mesaj " + (tip || "ok"); }
@@ -297,10 +328,14 @@ function arata() {
   $("cardLogin").classList.toggle("ascuns", !!eu);
   $("continut").classList.toggle("ascuns", !eu);
   $("zonaUser").innerHTML = eu ? `<span class="chip">✓ ${esc(eu.nume)}</span> <button class="btn mic" id="btnIesire">Ieșire</button>` : "";
-  document.querySelectorAll(".doar-admin").forEach(b => b.classList.toggle("ascuns", !(eu && eu.admin)));
+  document.querySelectorAll(".taburi [data-perm]").forEach(b => b.classList.toggle("ascuns", !are(b.dataset.perm)));
   if (eu) {
     $("cUser").value = eu.utilizator; $("pzUser").value = eu.utilizator;
-    $("cNume").value = eu.nume; $("cEmail").value = eu.email || "";
+    $("cNume").value = eu.nume; $("cEmail").value = eu.email || ""; $("cRol").value = eu.rol_nume;
+    incarcaRoluri().then(r => {
+      const ale_mele = r.permisiuni.filter(x => eu.permisiuni.includes(x.cheie));
+      $("cDrepturi").innerHTML = ale_mele.length ? ale_mele.map(x => `<li>${esc(x.nume)}</li>`).join("") : "<li>doar vizualizare</li>";
+    }).catch(() => {});
   }
 }
 $("zonaUser").addEventListener("click", async e => {
@@ -316,15 +351,19 @@ $("formLogin").addEventListener("submit", async e => {
   } catch (err) { mesaj("lgMesaj", err.message, "err"); }
 });
 
-function tabDinAdresa() { const t = location.hash.slice(1); return ["cont", "conturi", "email"].includes(t) ? t : (eu && eu.admin ? "conturi" : "cont"); }
+const PERM_TAB = { cont: null, conturi: "conturi", roluri: "conturi", email: "email" };
+function tabDinAdresa() { const t = location.hash.slice(1); return t in PERM_TAB ? t : (are("conturi") ? "conturi" : "cont"); }
 function deschideTab(t) {
-  if (!eu || (!eu.admin && t !== "cont")) t = "cont";
+  if (!eu || !(t in PERM_TAB) || (PERM_TAB[t] && !are(PERM_TAB[t]))) t = "cont";
   document.querySelectorAll(".taburi button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t ? "true" : "false"));
   document.querySelectorAll("section[data-panou]").forEach(s => s.classList.toggle("ascuns", s.dataset.panou !== t));
   history.replaceState(null, "", "#" + t);
   if (t === "conturi") incarcaUtilizatori();
   if (t === "email") incarcaEmail();
+  if (t === "roluri") deseneazaRoluri();
 }
+addEventListener("hashchange", () => { if (eu) deschideTab(tabDinAdresa()); });
+document.addEventListener("click", e => { const a = e.target.closest("[data-mergi]"); if (a) { e.preventDefault(); deschideTab(a.dataset.mergi); } });
 document.querySelector(".taburi").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) deschideTab(b.dataset.tab); });
 
 /* ---------- contul meu ---------- */
@@ -344,7 +383,11 @@ $("formParola").addEventListener("submit", async e => {
 
 /* ---------- conturi ---------- */
 async function incarcaUtilizatori() {
-  try { const j = await api("api/utilizatori?t=" + Date.now()); deseneazaUtilizatori(j.utilizatori); }
+  try {
+    const r = await incarcaRoluri();
+    $("unRol").innerHTML = r.roluri.map(x => `<option value="${x.rol}" ${x.rol === "coordonator" ? "selected" : ""} ${x.rol === "admin" && eu.rol !== "admin" ? "disabled" : ""}>${esc(x.nume)}</option>`).join("");
+    const j = await api("api/utilizatori?t=" + Date.now()); deseneazaUtilizatori(j.utilizatori);
+  }
   catch (e) { mesaj("uMesaj", e.message, "err"); }
 }
 function deseneazaUtilizatori(lista) {
@@ -354,16 +397,26 @@ function deseneazaUtilizatori(lista) {
       const euInsumi = u.utilizator.toLowerCase() === eu.utilizator.toLowerCase();
       return `<tr data-u="${esc(u.utilizator)}">
       <td><b>${esc(u.utilizator)}</b>${euInsumi ? ' <span class="secundar">(tu)</span>' : ""}</td>
-      <td><input data-c="nume" value="${esc(u.nume)}" aria-label="Nume ${esc(u.utilizator)}" style="min-width:140px"></td>
-      <td><input data-c="email" type="email" value="${esc(u.email || "")}" placeholder="—" aria-label="Email ${esc(u.utilizator)}" style="min-width:190px"></td>
-      <td>${u.admin ? `<span class="badge b-admin">Administrator</span>` : `<span class="badge b-neutru">Utilizator</span>`}</td>
+      <td><input data-c="nume" value="${esc(u.nume)}" aria-label="Nume ${esc(u.utilizator)}" style="min-width:110px"></td>
+      <td><input data-c="email" type="email" value="${esc(u.email || "")}" placeholder="—" aria-label="Email ${esc(u.utilizator)}" style="min-width:150px"></td>
+      <td><select data-c="rol" aria-label="Rol ${esc(u.utilizator)}" ${u.rol === "admin" && eu.rol !== "admin" ? "disabled" : ""}>${roluriInfo.roluri.map(x => `<option value="${x.rol}" ${x.rol === u.rol ? "selected" : ""} ${x.rol === "admin" && eu.rol !== "admin" ? "disabled" : ""}>${esc(x.nume)}</option>`).join("")}</select></td>
       <td>${u.activ ? `<span class="badge b-ok">Activ</span>` : `<span class="badge b-err">Dezactivat</span>`}</td>
       <td class="secundar" style="white-space:nowrap">${u.ultima_logare ? ro(u.ultima_logare) : "—"}</td>
-      <td style="min-width:300px"><button class="btn mic primar ascuns" data-a="salveaza">Salvează</button><button class="btn mic" data-a="parola">Parolă nouă</button><button class="btn mic" data-a="admin">${u.admin ? "Scoate admin" : "Fă admin"}</button><button class="btn mic" data-a="activ">${u.activ ? "Dezactivează" : "Activează"}</button>${euInsumi ? "" : `<button class="btn mic pericol" data-a="sterge">Șterge</button>`}</td>
+      <td style="min-width:250px"><button class="btn mic primar ascuns" data-a="salveaza">Salvează</button><button class="btn mic" data-a="parola">Parolă nouă</button><button class="btn mic" data-a="activ">${u.activ ? "Dezactivează" : "Activează"}</button>${euInsumi ? "" : `<button class="btn mic pericol" data-a="sterge">Șterge</button>`}</td>
     </tr>`;
     }).join("");
 }
-$("tblUtil").addEventListener("input", e => { const tr = e.target.closest("tr[data-u]"); if (tr) tr.querySelector('[data-a="salveaza"]').classList.remove("ascuns"); });
+$("tblUtil").addEventListener("input", e => { const tr = e.target.closest("tr[data-u]"); if (tr && e.target.tagName === "INPUT") tr.querySelector('[data-a="salveaza"]').classList.remove("ascuns"); });
+$("tblUtil").addEventListener("change", async e => {
+  if (e.target.dataset.c !== "rol") return;
+  const ut = e.target.closest("tr").dataset.u;
+  try {
+    const j = await api(`api/utilizatori/${encodeURIComponent(ut)}`, { rol: e.target.value });
+    mesaj("uMesaj", `${ut} are acum rolul ${e.target.selectedOptions[0].textContent}.`);
+    deseneazaUtilizatori(j.utilizatori);
+    if (ut.toLowerCase() === eu.utilizator.toLowerCase()) { const r = await api("api/eu"); eu = r.eu; arata(); deschideTab(tabDinAdresa()); }
+  } catch (err) { mesaj("uMesaj", err.message, "err"); deseneazaUtilizatori(utilizatori); }
+});
 $("tblUtil").addEventListener("click", async e => {
   const b = e.target.closest("button[data-a]"); if (!b) return;
   const tr = b.closest("tr"), ut = tr.dataset.u, u = utilizatori.find(x => x.utilizator === ut);
@@ -373,7 +426,6 @@ $("tblUtil").addEventListener("click", async e => {
     switch (b.dataset.a) {
       case "salveaza": j = await api(url, { nume: tr.querySelector('[data-c="nume"]').value, email: tr.querySelector('[data-c="email"]').value }); mesaj("uMesaj", `Datele lui ${ut} au fost salvate.`); break;
       case "parola": { const p = prompt(`Parola nouă pentru ${ut} (minim 6 caractere):`); if (!p) return; j = await api(url + "/parola", { parola: p }); mesaj("uMesaj", `Parola pentru ${ut} a fost schimbată. Comunic-o utilizatorului.`); break; }
-      case "admin": j = await api(url, { admin: !u.admin }); mesaj("uMesaj", "Salvat."); break;
       case "activ": j = await api(url, { activ: !u.activ }); mesaj("uMesaj", "Salvat."); break;
       case "sterge": if (!confirm(`Ștergi contul ${ut}? Acțiunile și comentariile lui rămân.`)) return; j = await api(url + "/sterge", {}); mesaj("uMesaj", `Contul ${ut} a fost șters.`); break;
     }
@@ -384,9 +436,44 @@ $("tblUtil").addEventListener("click", async e => {
 $("formUtilNou").addEventListener("submit", async e => {
   e.preventDefault();
   try {
-    const j = await api("api/utilizatori", { utilizator: $("unUser").value.trim(), nume: $("unNume").value.trim(), email: $("unEmail").value.trim(), parola: $("unParola").value, admin: $("unAdmin").checked });
-    mesaj("unMesaj", `Contul ${$("unUser").value.trim()} a fost creat.`); $("formUtilNou").reset(); deseneazaUtilizatori(j.utilizatori);
+    const j = await api("api/utilizatori", { utilizator: $("unUser").value.trim(), nume: $("unNume").value.trim(), email: $("unEmail").value.trim(), parola: $("unParola").value, rol: $("unRol").value });
+    mesaj("unMesaj", `Contul ${$("unUser").value.trim()} a fost creat.`); $("formUtilNou").reset(); $("unRol").value = "coordonator"; deseneazaUtilizatori(j.utilizatori);
   } catch (err) { mesaj("unMesaj", err.message, "err"); }
+});
+
+/* ---------- roluri ---------- */
+let drepturiEditate = null;
+async function deseneazaRoluri() {
+  try {
+    roluriInfo = null;
+    const r = await incarcaRoluri();
+    drepturiEditate = JSON.parse(JSON.stringify(r.drepturi));
+    const pot = eu.rol === "admin";
+    $("rBtnRand").classList.toggle("ascuns", !pot);
+    $("rDesc").textContent = pot ? "Bifează ce poate face fiecare rol. Administratorul are mereu toate drepturile."
+                                 : "Drepturile fiecărui rol. Doar administratorul le poate schimba.";
+    let nr = {};
+    try { const u = await api("api/utilizatori?t=" + Date.now()); u.utilizatori.forEach(x => { if (x.activ) nr[x.rol] = (nr[x.rol] || 0) + 1; }); } catch (e) {}
+    $("tblRoluri").innerHTML = `<tr><th>Drept</th>${r.roluri.map(x => `<th>${esc(x.nume)}<div class="secundar" style="font-weight:400">${(nr[x.rol] || 0) === 1 ? "1 cont" : (nr[x.rol] || 0) + " conturi"}</div></th>`).join("")}</tr>` +
+      r.permisiuni.map(p => `<tr><td>${esc(p.nume)}</td>${r.roluri.map(x => `<td><input type="checkbox" data-rol="${x.rol}" data-p="${p.cheie}" aria-label="${esc(x.nume)}: ${esc(p.nume)}" ${drepturiEditate[x.rol].includes(p.cheie) ? "checked" : ""} ${x.rol === "admin" || !pot ? "disabled" : ""}></td>`).join("")}</tr>`).join("");
+  } catch (e) { mesaj("rMesaj", e.message, "err"); }
+}
+$("tblRoluri").addEventListener("change", e => {
+  const i = e.target; if (!i.dataset.rol) return;
+  const l = drepturiEditate[i.dataset.rol];
+  if (i.checked) { if (!l.includes(i.dataset.p)) l.push(i.dataset.p); } else drepturiEditate[i.dataset.rol] = l.filter(x => x !== i.dataset.p);
+});
+$("btnSalveazaRoluri").addEventListener("click", async () => {
+  try {
+    await api("api/setari/roluri", { drepturi: drepturiEditate });
+    roluriInfo = null; mesaj("rMesaj", "Drepturile au fost salvate. Se aplică imediat tuturor utilizatorilor.");
+    const r = await api("api/eu"); eu = r.eu; arata(); deseneazaRoluri();
+  } catch (e) { mesaj("rMesaj", e.message, "err"); }
+});
+$("btnRoluriImplicit").addEventListener("click", () => {
+  for (const r in IMPLICIT) drepturiEditate[r] = [...IMPLICIT[r]];
+  $("tblRoluri").querySelectorAll("input[data-rol]").forEach(i => { if (i.dataset.rol !== "admin") i.checked = drepturiEditate[i.dataset.rol].includes(i.dataset.p); });
+  mesaj("rMesaj", "Valorile implicite sunt bifate. Apasă „Salvează drepturile”.", "info");
 });
 
 /* ---------- email ---------- */
@@ -414,6 +501,9 @@ function umpleEmail(s) {
   $("eStergeRand").classList.toggle("ascuns", !sm.parola_setata);
   $("eZile").value = g.zile_inainte_termen; $("eSubiect").value = g.subiect; $("eLink").value = g.link_tracker;
   $("eRezumat").value = g.rezumat_catre; $("eCc").value = g.cc; $("eDoarRezumat").checked = !!g.doar_rezumat;
+  incarcaRoluri().then(r => {
+    $("eRezRoluri").innerHTML = r.roluri.map(x => `<label class="bifa"><input type="checkbox" value="${x.rol}" ${(g.rezumat_roluri || []).includes(x.rol) ? "checked" : ""}> ${esc(x.nume)}</label>`).join("");
+  });
   $("pActiv").checked = !!p.activ; $("pOra").value = p.ora;
   document.querySelectorAll("#pZile input").forEach(i => i.checked = p.zile.includes(+i.value));
   const u = s.ultima_auto;
@@ -445,7 +535,8 @@ $("formEmail").addEventListener("submit", async e => {
   e.preventDefault();
   const date = {
     smtp: { server: $("eServer").value, port: $("ePort").value, securitate: $("eSec").value, de_la: $("eDeLa").value, utilizator: $("eUser").value, parola: $("eParola").value, sterge_parola: $("eSterge").checked },
-    general: { zile_inainte_termen: $("eZile").value, subiect: $("eSubiect").value, link_tracker: $("eLink").value, rezumat_catre: $("eRezumat").value, cc: $("eCc").value, doar_rezumat: $("eDoarRezumat").checked },
+    general: { zile_inainte_termen: $("eZile").value, subiect: $("eSubiect").value, link_tracker: $("eLink").value, rezumat_catre: $("eRezumat").value, cc: $("eCc").value, doar_rezumat: $("eDoarRezumat").checked,
+               rezumat_roluri: [...document.querySelectorAll("#eRezRoluri input:checked")].map(i => i.value) },
     program: { activ: $("pActiv").checked, ora: $("pOra").value, zile: [...document.querySelectorAll("#pZile input:checked")].map(i => +i.value) },
     destinatari: [...$("tblDest").querySelectorAll("tr")].map(tr => ({ responsabil: tr.querySelector('[data-c="responsabil"]')?.value || "", email: tr.querySelector('[data-c="email"]')?.value || "" })).filter(d => d.responsabil && d.email),
   };

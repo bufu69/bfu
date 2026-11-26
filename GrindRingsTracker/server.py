@@ -218,6 +218,10 @@ CREATE INDEX IF NOT EXISTS ix_ist_nr ON istoric(nr);
         coloane = [r[1] for r in c.execute("PRAGMA table_info(utilizatori)")]
         if "email" not in coloane:
             c.execute("ALTER TABLE utilizatori ADD COLUMN email TEXT DEFAULT ''")
+        if "rol" not in coloane:
+            # conturile vechi: administratorii raman administratori, ceilalti devin Manager (aveau toate drepturile)
+            c.execute("ALTER TABLE utilizatori ADD COLUMN rol TEXT DEFAULT 'coordonator'")
+            c.execute("UPDATE utilizatori SET rol = CASE WHEN admin=1 THEN 'admin' ELSE 'manager' END")
     importa_mail_ini()
 
 
@@ -241,6 +245,76 @@ def backup_zilnic():
             os.remove(os.path.join(d, f))
         except OSError:
             pass
+
+
+# =============================================================== roluri si drepturi
+ROLURI = [("admin", "Administrator"), ("manager", "Manager"), ("coordonator", "Coordonator"),
+          ("zone_leader", "Zone Leader"), ("planificator", "Planificator")]
+NUME_ROL = dict(ROLURI)
+PERMISIUNI = [
+    ("adauga", "Adaugă acțiuni noi"),
+    ("modifica_toate", "Modifică orice acțiune"),
+    ("modifica_proprii", "Modifică acțiunile proprii (unde e responsabil sau le-a creat)"),
+    ("termen_prioritate", "Schimbă termenul și prioritatea la orice acțiune"),
+    ("inchide", "Închide / redeschide acțiuni (pe cele pe care le poate modifica)"),
+    ("sterge", "Șterge acțiuni"),
+    ("comenteaza", "Adaugă comentarii și atașamente"),
+    ("conturi", "Gestionează conturile"),
+    ("email", "Setări email și trimitere mailuri"),
+]
+NUME_PERM = dict(PERMISIUNI)
+ROLURI_IMPLICIT = {
+    "manager": ["adauga", "modifica_toate", "termen_prioritate", "inchide", "sterge", "comenteaza", "email"],
+    "coordonator": ["adauga", "modifica_toate", "termen_prioritate", "inchide", "comenteaza"],
+    "zone_leader": ["adauga", "modifica_proprii", "inchide", "comenteaza"],
+    "planificator": ["adauga", "termen_prioritate", "comenteaza"],
+}
+
+
+def drepturi_roluri():
+    """{rol: [permisiuni]} - administratorul are mereu toate drepturile."""
+    salvat = citeste_setare("roluri", {}) or {}
+    rez = {"admin": [k for k, _ in PERMISIUNI]}
+    for rol, _ in ROLURI[1:]:
+        rez[rol] = [k for k in salvat.get(rol, ROLURI_IMPLICIT[rol]) if k in NUME_PERM]
+    return rez
+
+
+def salveaza_drepturi_roluri(d):
+    nou = {}
+    for rol, _ in ROLURI[1:]:
+        nou[rol] = [k for k, _ in PERMISIUNI if k in set(d.get(rol, []))]
+    scrie_setare("roluri", nou)
+
+
+def permisiuni(u):
+    if not u or not u.get("activ", 1):
+        return set()
+    return set(drepturi_roluri().get(u.get("rol") or "coordonator", []))
+
+
+def cere(u, perm):
+    if perm not in permisiuni(u):
+        raise Eroare(f"Rolul tău ({NUME_ROL.get(u.get('rol'), u.get('rol'))}) nu are dreptul: {NUME_PERM[perm].lower()}.", 403)
+
+
+def e_proprie(u, r):
+    """Actiunea e 'proprie' daca utilizatorul e responsabil (dupa nume sau utilizator) sau a creat-o."""
+    ale_mele = {fara_diacritice(u["nume"]), fara_diacritice(u["utilizator"])}
+    return fara_diacritice(r["responsabil"]) in ale_mele or fara_diacritice(r["creat_de"]) in ale_mele
+
+
+def poate_modifica(u, r):
+    pr = permisiuni(u)
+    return "modifica_toate" in pr or ("modifica_proprii" in pr and e_proprie(u, r))
+
+
+def drepturi_pe_actiune(u, r):
+    """Ce poate face utilizatorul pe o actiune anume (pentru pagina)."""
+    pr = permisiuni(u)
+    mod = poate_modifica(u, r)
+    return {"modifica": mod, "termen_prioritate": mod or "termen_prioritate" in pr,
+            "inchide": mod and "inchide" in pr, "sterge": "sterge" in pr, "comenteaza": "comenteaza" in pr}
 
 
 # =============================================================== utilizatori si sesiuni
@@ -270,19 +344,27 @@ def numar_utilizatori():
 def lista_utilizatori():
     with db() as c:
         return [dict(r) for r in c.execute(
-            "SELECT utilizator, nume, email, admin, activ, creat_la, ultima_logare FROM utilizatori ORDER BY utilizator")]
+            "SELECT utilizator, nume, email, rol, activ, creat_la, ultima_logare FROM utilizatori ORDER BY utilizator")]
 
 
-def creeaza_utilizator(utilizator, nume, parola, admin=False, email=""):
+def rol_valid(rol):
+    rol = str(rol or "").strip().lower().replace(" ", "_")
+    if rol not in NUME_ROL:
+        raise Eroare("Rol necunoscut. Roluri: " + ", ".join(NUME_ROL.values()))
+    return rol
+
+
+def creeaza_utilizator(utilizator, nume, parola, rol="coordonator", email=""):
     utilizator = _valideaza(utilizator, parola)
+    rol = rol_valid(rol)
     nume = str(nume or "").strip() or utilizator
     email = _adrese_valide(email, "Email")
     with db() as c:
         if c.execute("SELECT 1 FROM utilizatori WHERE utilizator=?", (utilizator,)).fetchone():
             raise Eroare(f"Utilizatorul „{utilizator}” există deja.")
         sare = secrets.token_hex(16)
-        c.execute("INSERT INTO utilizatori(utilizator, nume, email, sare, hash, admin, activ, creat_la) VALUES (?,?,?,?,?,?,1,?)",
-                  (utilizator, nume, email, sare, _hash(parola, sare), 1 if admin else 0, acum()))
+        c.execute("INSERT INTO utilizatori(utilizator, nume, email, sare, hash, admin, rol, activ, creat_la) VALUES (?,?,?,?,?,?,?,1,?)",
+                  (utilizator, nume, email, sare, _hash(parola, sare), 1 if rol == "admin" else 0, rol, acum()))
     return utilizator
 
 
@@ -296,21 +378,23 @@ def schimba_parola(utilizator, parola):
         raise Eroare("Utilizatorul nu există.", 404)
 
 
-def modifica_utilizator(utilizator, nume=None, admin=None, activ=None, email=None):
+def modifica_utilizator(utilizator, nume=None, rol=None, activ=None, email=None):
     with db() as c:
         r = c.execute("SELECT * FROM utilizatori WHERE utilizator=?", (utilizator,)).fetchone()
         if not r:
             raise Eroare("Utilizatorul nu există.", 404)
-        if (admin is False or activ is False) and r["admin"]:
-            admini = c.execute("SELECT COUNT(*) FROM utilizatori WHERE admin=1 AND activ=1").fetchone()[0]
+        if rol is not None:
+            rol = rol_valid(rol)
+        if r["rol"] == "admin" and r["activ"] and ((rol is not None and rol != "admin") or activ is False):
+            admini = c.execute("SELECT COUNT(*) FROM utilizatori WHERE rol='admin' AND activ=1").fetchone()[0]
             if admini <= 1:
                 raise Eroare("Trebuie să rămână cel puțin un administrator activ.")
         if nume is not None:
             c.execute("UPDATE utilizatori SET nume=? WHERE utilizator=?", (str(nume).strip() or utilizator, utilizator))
         if email is not None:
             c.execute("UPDATE utilizatori SET email=? WHERE utilizator=?", (_adrese_valide(email, "Email"), utilizator))
-        if admin is not None:
-            c.execute("UPDATE utilizatori SET admin=? WHERE utilizator=?", (1 if admin else 0, utilizator))
+        if rol is not None:
+            c.execute("UPDATE utilizatori SET rol=?, admin=? WHERE utilizator=?", (rol, 1 if rol == "admin" else 0, utilizator))
         if activ is not None:
             c.execute("UPDATE utilizatori SET activ=? WHERE utilizator=?", (1 if activ else 0, utilizator))
             if not activ:
@@ -362,11 +446,24 @@ def sterge_sesiune(token):
 
 
 def public(u):
-    return {"utilizator": u["utilizator"], "nume": u["nume"], "email": u.get("email") or "", "admin": bool(u["admin"])} if u else None
+    if not u:
+        return None
+    pr = permisiuni(u)
+    return {"utilizator": u["utilizator"], "nume": u["nume"], "email": u.get("email") or "",
+            "rol": u.get("rol"), "rol_nume": NUME_ROL.get(u.get("rol"), u.get("rol")),
+            "admin": u.get("rol") == "admin", "permisiuni": sorted(pr)}
 
 
 def meniu_utilizatori():
     """Administrare din consola (editori.bat) - util si daca ai uitat parola de administrator."""
+    def alege_rol():
+        for i, (k, n) in enumerate(ROLURI, 1):
+            print(f"    {i} = {n}")
+        while True:
+            x = input("Rol (1-5): ").strip()
+            if x.isdigit() and 1 <= int(x) <= len(ROLURI):
+                return ROLURI[int(x) - 1][0]
+
     def intreaba_parola():
         while True:
             p1 = getpass.getpass("Parola (minim 6 caractere, nu se afiseaza): ")
@@ -380,20 +477,20 @@ def meniu_utilizatori():
         us = lista_utilizatori()
         print(f"\n===== {APP_NAME} - UTILIZATORI =====")
         for u in us:
-            print(f"  {u['utilizator']:<20} {u['nume']:<25} {'ADMIN' if u['admin'] else '':<6} "
+            print(f"  {u['utilizator']:<20} {u['nume']:<25} {NUME_ROL.get(u['rol'], u['rol']):<14} "
                   f"{'' if u['activ'] else '(dezactivat)'}  ultima logare: {(u['ultima_logare'] or '-')[:16]}")
         if not us:
             print("  (niciun utilizator - creeaza unul, sau deschide tracker-ul in browser)")
-        print("\n  1 = utilizator nou   2 = schimba parola   3 = fa / scoate administrator")
+        print("\n  1 = utilizator nou   2 = schimba parola   3 = schimba rolul")
         print("  4 = dezactiveaza / activeaza   5 = sterge   0 = iesire")
         opt = input("> ").strip()
         try:
             if opt == "1":
                 ut = input("Utilizator (pentru logare, ex. ion.popescu): ").strip()
                 nume = input("Nume afisat (ex. Ion Popescu): ").strip()
-                adm = not us or input("Administrator? D/N: ").strip().lower().startswith(("d", "y"))
-                creeaza_utilizator(ut, nume, intreaba_parola(), adm)
-                print(f"OK - {ut} creat{' (administrator)' if adm else ''}.")
+                rol = "admin" if not us else alege_rol()
+                creeaza_utilizator(ut, nume, intreaba_parola(), rol)
+                print(f"OK - {ut} creat ({NUME_ROL[rol]}).")
             elif opt == "2":
                 ut = input("Utilizator: ").strip()
                 schimba_parola(ut, intreaba_parola())
@@ -402,8 +499,9 @@ def meniu_utilizatori():
                 ut = input("Utilizator: ").strip()
                 u = next((x for x in us if x["utilizator"].lower() == ut.lower()), None)
                 if u:
-                    modifica_utilizator(u["utilizator"], admin=not u["admin"])
-                    print("Acum este administrator." if not u["admin"] else "Nu mai este administrator.")
+                    rol = alege_rol()
+                    modifica_utilizator(u["utilizator"], rol=rol)
+                    print(f"Rol nou: {NUME_ROL[rol]}.")
                 else:
                     print("Nu exista.")
             elif opt == "4":
@@ -500,7 +598,7 @@ def adauga(date_cerere, autor, c=None, op="adăugare"):
             return scrie(conn)
 
 
-def modifica(nr, date_cerere, autor):
+def modifica(nr, date_cerere, autor, u=None):
     with db_lock:
         backup_zilnic()
         with db() as c:
@@ -508,6 +606,21 @@ def modifica(nr, date_cerere, autor):
             if not r:
                 raise Eroare("Acțiunea nu există.", 404)
             v = curata(date_cerere)
+            if u is not None:
+                dr = drepturi_pe_actiune(u, r)
+                for k, x in v.items():
+                    if (r[k] or None) == (x or None):
+                        continue
+                    if k == "stadiu" and "Închis" in (r[k], x):
+                        if not dr["inchide"]:
+                            raise Eroare("Nu ai dreptul să închizi sau să redeschizi această acțiune.", 403)
+                    elif k in ("termen", "prioritate"):
+                        if not dr["termen_prioritate"]:
+                            raise Eroare("Nu ai dreptul să schimbi termenul sau prioritatea acestei acțiuni.", 403)
+                    elif not dr["modifica"]:
+                        raise Eroare(f"Nu ai dreptul să modifici câmpul „{dict(CAMPURI)[k]}” la această acțiune.", 403)
+                if str(date_cerere.get("comentariu") or "").strip() and not dr["comenteaza"]:
+                    raise Eroare("Nu ai dreptul să adaugi comentarii.", 403)
             for obligatoriu in ("masina", "problema", "actiune", "responsabil"):
                 if obligatoriu in v and not v[obligatoriu]:
                     raise Eroare(f"Câmpul „{dict(CAMPURI)[obligatoriu]}” nu poate fi gol.")
@@ -728,7 +841,7 @@ def importa_csv(path):
 SETARI_EMAIL_IMPLICIT = {
     "smtp": {"server": "", "port": 587, "securitate": "starttls", "utilizator": "", "parola": "", "de_la": ""},
     "general": {"zile_inainte_termen": 2, "subiect": "Grind Rings - acțiuni de urmărit", "link_tracker": "",
-                "cc": "", "rezumat_catre": "", "doar_rezumat": False},
+                "cc": "", "rezumat_catre": "", "rezumat_roluri": [], "doar_rezumat": False},
     "program": {"activ": False, "zile": [1, 2, 3, 4, 5], "ora": "07:30"},
 }
 
@@ -806,7 +919,8 @@ def salveaza_setari_email(d):
                         link_tracker=str(g.get("link_tracker", "")).strip(),
                         cc=_adrese_valide(g.get("cc"), "Copie (CC)"),
                         rezumat_catre=_adrese_valide(g.get("rezumat_catre"), "Rezumat către"),
-                        doar_rezumat=bool(g.get("doar_rezumat")))
+                        doar_rezumat=bool(g.get("doar_rezumat")),
+                        rezumat_roluri=[r for r in g.get("rezumat_roluri", []) if r in NUME_ROL])
     ora = str(pr.get("ora", "07:30")).strip()
     if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", ora):
         raise Eroare("Ora trebuie să fie în forma HH:MM (ex. 07:30).")
@@ -875,6 +989,17 @@ def pregateste_mailuri(s=None):
     g = s["general"]
     zile = int(g.get("zile_inainte_termen", 2))
     link, subiect, cc, rezumat = g["link_tracker"], g["subiect"], g["cc"], g["rezumat_catre"]
+    roluri = g.get("rezumat_roluri") or []
+    if roluri:
+        with db() as c:
+            adr = [r["email"] for r in c.execute(
+                f"SELECT email FROM utilizatori WHERE activ=1 AND email<>'' AND rol IN ({','.join('?' * len(roluri))})", roluri)]
+        toate_adr = [x.strip() for x in re.split(r"[;,]", rezumat) if x.strip()]
+        for a in adr:
+            for x in re.split(r"[;,]", a):
+                if x.strip() and x.strip().lower() not in {t.lower() for t in toate_adr}:
+                    toate_adr.append(x.strip())
+        rezumat = "; ".join(toate_adr)
     adrese = {fara_diacritice(d["responsabil"]): d["email"] for d in destinatari() if d["email"]}
 
     azi = date.today()
@@ -1135,7 +1260,15 @@ class Server(BaseHTTPRequestHandler):
                     return self.json({"ok": True, "actiuni": toate_actiunile(), "azi": date.today().isoformat()})
                 m = re.fullmatch(r"/api/actiuni/(\d+)", p)
                 if m:
-                    return self.json({"ok": True, **o_actiune(int(m.group(1)))})
+                    det = o_actiune(int(m.group(1)))
+                    u = self.utilizator()
+                    if u:
+                        with db() as c:
+                            r = c.execute("SELECT * FROM actiuni WHERE nr=?", (int(m.group(1)),)).fetchone()
+                        det["drepturi"] = drepturi_pe_actiune(u, r)
+                    else:
+                        det["drepturi"] = None
+                    return self.json({"ok": True, **det})
                 if p == "/api/liste":
                     return self.json({"ok": True, "liste": liste()})
                 if p == "/api/istoric":
@@ -1149,10 +1282,15 @@ class Server(BaseHTTPRequestHandler):
                     return self.fisier(os.path.join(dir_atasamente(int(m.group(1))), nume), descarcare=nume)
                 if p == "/api/eu":
                     return self.json({"ok": True, "eu": public(self.utilizator()), "configurat": numar_utilizatori() > 0})
+                if p == "/api/roluri":
+                    return self.json({"ok": True, "roluri": [{"rol": k, "nume": n} for k, n in ROLURI],
+                                      "permisiuni": [{"cheie": k, "nume": n} for k, n in PERMISIUNI],
+                                      "drepturi": drepturi_roluri()})
                 if p in ("/api/utilizatori", "/api/setari/email", "/api/setari/email/previzualizare"):
                     u = self.utilizator()
-                    if not u or not u["admin"]:
-                        raise Eroare("Doar pentru administratori.", 403)
+                    if not u:
+                        raise Eroare("Trebuie să te autentifici.", 401)
+                    cere(u, "conturi" if p == "/api/utilizatori" else "email")
                     if p == "/api/utilizatori":
                         return self.json({"ok": True, "utilizatori": lista_utilizatori()})
                     if p == "/api/setari/email":
@@ -1171,7 +1309,7 @@ class Server(BaseHTTPRequestHandler):
                 with db_lock:
                     if numar_utilizatori() > 0:
                         raise Eroare("Există deja utilizatori. Autentifică-te.", 403)
-                    ut = creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), admin=True)
+                    ut = creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), rol="admin")
                 token, durata = creeaza_sesiune(ut, True)
                 print(f"  * primul administrator creat: {ut}")
                 return self.json({"ok": True, "eu": public(utilizator_din_token(token))}, extra={"Set-Cookie": self.cookie(token, durata)})
@@ -1201,11 +1339,18 @@ class Server(BaseHTTPRequestHandler):
                 return self.json({"ok": True}, extra={"Set-Cookie": self.cookie(token, durata)})
             m = re.fullmatch(r"/api/utilizatori(?:/([^/]+)(?:/(parola|sterge))?)?", p)
             if m:
-                if not u["admin"]:
-                    raise Eroare("Doar pentru administratori.", 403)
+                cere(u, "conturi")
                 ut, act = m.group(1), m.group(2)
+                # doar un administrator poate crea / numi administratori
+                if d.get("rol") == "admin" and u.get("rol") != "admin":
+                    raise Eroare("Doar un administrator poate da rolul de Administrator.", 403)
+                if ut is not None and u.get("rol") != "admin":
+                    with db() as c:
+                        tinta = c.execute("SELECT rol FROM utilizatori WHERE utilizator=?", (ut,)).fetchone()
+                    if tinta and tinta["rol"] == "admin":
+                        raise Eroare("Doar un administrator poate modifica un cont de administrator.", 403)
                 if ut is None:
-                    creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), bool(d.get("admin")), d.get("email", ""))
+                    creeaza_utilizator(d.get("utilizator"), d.get("nume"), d.get("parola"), d.get("rol") or "coordonator", d.get("email", ""))
                 elif act == "parola":
                     schimba_parola(ut, d.get("parola"))
                 elif act == "sterge":
@@ -1213,11 +1358,16 @@ class Server(BaseHTTPRequestHandler):
                         raise Eroare("Nu îți poți șterge propriul cont.")
                     sterge_utilizator(ut)
                 else:
-                    modifica_utilizator(ut, d.get("nume"), d.get("admin"), d.get("activ"), d.get("email"))
+                    modifica_utilizator(ut, d.get("nume"), d.get("rol"), d.get("activ"), d.get("email"))
                 return self.json({"ok": True, "utilizatori": lista_utilizatori()})
+            if p == "/api/setari/roluri":
+                if u.get("rol") != "admin":
+                    raise Eroare("Doar administratorul poate schimba drepturile rolurilor.", 403)
+                salveaza_drepturi_roluri(d.get("drepturi", {}))
+                print(f"  ~ drepturi roluri schimbate de {autor}")
+                return self.json({"ok": True, "drepturi": drepturi_roluri()})
             if p.startswith("/api/setari/"):
-                if not u["admin"]:
-                    raise Eroare("Doar pentru administratori.", 403)
+                cere(u, "email")
                 if p == "/api/setari/email":
                     salveaza_setari_email(d)
                     print(f"  ~ setari email salvate de {autor}")
@@ -1233,6 +1383,9 @@ class Server(BaseHTTPRequestHandler):
                 return self.json({"ok": True, "eu": public(utilizator_din_token(self.token()))})
 
             if p == "/api/actiuni":
+                cere(u, "adauga")
+                if str(d.get("comentariu") or "").strip() and "comenteaza" not in permisiuni(u):
+                    d = {**d, "comentariu": ""}
                 nr = adauga(d, autor)
                 print(f"  + #{nr} de {autor}")
                 return self.json({"ok": True, "nr": nr})
@@ -1240,12 +1393,15 @@ class Server(BaseHTTPRequestHandler):
             if m:
                 nr, act = int(m.group(1)), m.group(2)
                 if act is None:
-                    modifica(nr, d, autor)
+                    modifica(nr, d, autor, u)
                 elif act == "comentariu":
+                    cere(u, "comenteaza")
                     comenteaza(nr, d.get("text"), autor)
                 elif act == "sterge":
+                    cere(u, "sterge")
                     sterge(nr, autor)
                 else:
+                    cere(u, "comenteaza")
                     nume = salveaza_atasament(nr, d.get("nume"), d.get("continut"))
                     with db_lock, db() as c:
                         jurnal(c, nr, "atașament", autor, {"fisier": nume})
@@ -1285,7 +1441,7 @@ def main():
     p = argparse.ArgumentParser(description=APP_NAME)
     p.add_argument("--editori", "--utilizatori", dest="editori", action="store_true", help="administrare utilizatori")
     p.add_argument("--adauga-utilizator", nargs=3, metavar=("UTILIZATOR", "NUME", "PAROLA"), help="creează un utilizator fără meniu")
-    p.add_argument("--admin", action="store_true", help="cu --adauga-utilizator: îl face administrator")
+    p.add_argument("--rol", default="coordonator", help="cu --adauga-utilizator: admin, manager, coordonator, zone_leader, planificator")
     p.add_argument("--numar-utilizatori", "--numar-editori", dest="numar", action="store_true", help="câți utilizatori există")
     p.add_argument("--import-excel", metavar="FISIER")
     p.add_argument("--foaie", metavar="NUME", help="foaia din Excel (implicit se detectează)")
@@ -1298,7 +1454,7 @@ def main():
         return meniu_utilizatori()
     if a.adauga_utilizator:
         try:
-            creeaza_utilizator(*a.adauga_utilizator, admin=a.admin)
+            creeaza_utilizator(*a.adauga_utilizator, rol=a.rol)
         except Eroare as e:
             raise SystemExit(str(e))
         return print(f"OK - {a.adauga_utilizator[0]} creat.")
