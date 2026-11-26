@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Grind Rings Action Tracker</title>
-<script src="xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -420,7 +420,7 @@
   <div class="sticky-top">
   <div class="header-row">
     <div class="brand">
-      <div class="brand-mark">GR</div>
+      <div class="brand-mark">PD</div>
       <div>
         <h1>Grind Rings Action Tracker</h1>
         <div class="status-strip">
@@ -667,15 +667,17 @@
 
 <script>
 /* ====== CONFIGURARE ====== */
-const EXCEL_FILE_URL = "data/tracker";
-const SHEET_NAME = "ActionItems";
+const EXCEL_FILE_URL = "http://romhdata03/timkentraining/PD_PO_Action_Tracker.xlsm";
+const SHEET_NAME = "ActionItemsPastDue";
 const REFRESH_INTERVAL_MS = 30000;
-// Serverul Python (grind_rings_server.py) care serveste si aceasta pagina.
-const ACTION_LISTENER_URL = new URL("./", window.location.href).href;
-// Fisierele atasate sunt servite de acelasi server Python.
-const ATTACHMENTS_BASE_URL = new URL("attachments/", window.location.href).href;
+// Adresa calculatorului pe care ruleaza Start-ActionListener.ps1 (statia grigob).
+// INLOCUIESTE cu numele sau IP-ul real al acelui calculator (vezi instructiunile).
+const ACTION_LISTENER_URL = "http://10.136.82.208:8791/";
+// Acelasi server care serveste dashboard-ul/xlsm-ul, dar in subfolderul "attachments"
+// (unde ascultatorul salveaza fisierele atasate).
+const ATTACHMENTS_BASE_URL = "http://romhdata03/timkentraining/attachments/";
 // Identifica acest sistem fata de celalalt (Follow-up) in fata ascultatorului comun.
-const LISTENER_SOURCE = "grindrings";
+const LISTENER_SOURCE = "pastdue";
 /* ========================= */
 
 const STATUS_COLOR = { "Deschis": "#e1596b", "În lucru": "#e8a33d", "Rezolvat": "#43b8a6" };
@@ -909,13 +911,13 @@ let state = { rows: [], search: "", statusFilter: "Toate", urgentFilter: "Toate"
 
 function loadOpenDetails() {
   try {
-    const raw = localStorage.getItem("grTrackerOpenDetails");
+    const raw = localStorage.getItem("pdTrackerOpenDetails");
     return raw ? new Set(JSON.parse(raw)) : new Set();
   } catch (e) { return new Set(); }
 }
 
 function saveOpenDetails() {
-  try { localStorage.setItem("grTrackerOpenDetails", JSON.stringify([...state.openDetails])); } catch (e) {}
+  try { localStorage.setItem("pdTrackerOpenDetails", JSON.stringify([...state.openDetails])); } catch (e) {}
 }
 
 function printAction(id) {  const card = document.querySelector(`.issue-card[data-print-id="${CSS.escape(id)}"]`);
@@ -983,7 +985,7 @@ async function uploadAttachment(cardKey, file) {
         statusEl.textContent = `Cod incorect. Fișierul nu a fost atașat.`;
       } else {
         statusEl.className = "attach-status error";
-        statusEl.textContent = `Eroare: ${json.error || "necunoscută"}. Verifică dacă grind_rings_server.py rulează.`;
+        statusEl.textContent = `Eroare: ${json.error || "necunoscută"}. Verifică dacă Start-ActionListener.ps1 rulează.`;
       }
     }
   } catch (err) {
@@ -1433,7 +1435,7 @@ async function getPendingDirHandle() {
   if (pendingDirHandle) return pendingDirHandle;
   if (!("showDirectoryPicker" in window)) return null;
   try {
-    const idbReq = indexedDB.open("grTrackerFS", 1);
+    const idbReq = indexedDB.open("pdTrackerFS", 1);
     const db = await new Promise((resolve, reject) => {
       idbReq.onupgradeneeded = () => idbReq.result.createObjectStore("handles");
       idbReq.onsuccess = () => resolve(idbReq.result);
@@ -1592,7 +1594,7 @@ async function deleteAction(cardKey, label) {
       alert(`Nu am putut șterge acțiunea: ${json.error || "eroare necunoscută"}`);
     }
   } catch (err) {
-    alert("Nu am putut contacta ascultătorul. Verifică dacă grind_rings_server.py rulează.");
+    alert("Nu am putut contacta ascultătorul. Verifică dacă Start-ActionListener.ps1 rulează pe stația configurată.");
   }
 }
 
@@ -1664,12 +1666,12 @@ async function submitEditAction() {
     } else if (res.status === 403) {
       resultEl.innerHTML = `<div class="modal-result-error">Cod incorect.</div>`;
     } else {
-      resultEl.innerHTML = `<div class="modal-result-error">Eroare: ${json.error || "necunoscută"}. Verifică dacă grind_rings_server.py rulează.</div>`;
+      resultEl.innerHTML = `<div class="modal-result-error">Eroare: ${json.error || "necunoscută"}. Verifică dacă Start-ActionListener.ps1 rulează.</div>`;
     }
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "Salvează modificările";
-    resultEl.innerHTML = `<div class="modal-result-error">Nu am putut contacta ascultătorul. Verifică dacă grind_rings_server.py rulează.</div>`;
+    resultEl.innerHTML = `<div class="modal-result-error">Nu am putut contacta ascultătorul. Verifică dacă Start-ActionListener.ps1 rulează pe stația configurată.</div>`;
   }
 }
 
@@ -1727,9 +1729,9 @@ document.getElementById("submitAddActionBtn").addEventListener("click", async ()
   const btn = document.getElementById("submitAddActionBtn");
   btn.disabled = true;
   btn.textContent = "Se salvează…";
-  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se scrie în Excel… poate dura până la 15-20 secunde.</div>`;
+  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se scrie în Excel… poate dura până la 15-20 secunde (Excel pornește în fundal pe stația grigob).</div>`;
 
-  // 1) incearca scrierea IMEDIATA, direct in Excel, prin grind_rings_server.py
+  // 1) incearca scrierea IMEDIATA, direct in Excel, prin Start-ActionListener.ps1
   const direct = await tryDirectListener(formFields);
   if (direct.ok) {
     btn.disabled = false;
@@ -1746,12 +1748,12 @@ document.getElementById("submitAddActionBtn").addEventListener("click", async ()
   btn.textContent = "Salvează acțiunea";
 
   if (res.ok) {
-    resultEl.innerHTML = `<div class="modal-result-ok">Ascultătorul direct nu a răspuns, dar am salvat în coadă. Va apărea în Excel după importul cozii pe server (python grind_rings_server.py --import-csv pending_new_actions.csv).</div>`;
+    resultEl.innerHTML = `<div class="modal-result-ok">Ascultătorul direct nu a răspuns, dar am salvat în coadă. Va apărea în Excel după rularea Import-PendingActions.ps1.</div>`;
     ["naClient","naResponsabil","naActiune","naTipActiune","naSapRulment","naDescRulment","naFamilie","naComandaMontaj","naSapComponent","naDescComponent","naTipComponent","naComandaComponent","naQty","naComentarii","naPin"].forEach(id => document.getElementById(id).value = "");
   } else {
     const csvLine = rowValues.map(csvEscape).join(",");
     resultEl.innerHTML = `
-      <div class="modal-result-error">Nu am putut scrie nici direct, nici în coadă (verifică dacă grind_rings_server.py rulează). Copiază rândul de mai jos și lipește-l direct în Excel, sau la finalul „${PENDING_CSV_NAME}":</div>
+      <div class="modal-result-error">Nu am putut scrie nici direct, nici în coadă (verifică dacă Start-ActionListener.ps1 rulează pe stația grigob). Copiază rândul de mai jos și lipește-l direct în Excel, sau la finalul „${PENDING_CSV_NAME}":</div>
       <textarea class="modal-fallback-text" id="fallbackCsvLine" rows="3" readonly>${csvLine}</textarea>
       <button type="button" class="modal-btn-primary" id="copyFallbackBtn" style="margin-top:8px;">Copiază rândul</button>`;
     document.getElementById("copyFallbackBtn").addEventListener("click", () => {
@@ -1790,14 +1792,14 @@ function applyTheme(light) {
   const btn = document.getElementById("themeToggleBtn");
   btn.classList.toggle("active", light);
   btn.title = light ? "Revino la fundal întunecat" : "Fundal luminos (pentru proiector)";
-  try { localStorage.setItem("grTrackerLightMode", light ? "1" : "0"); } catch (e) {}
+  try { localStorage.setItem("pdTrackerLightMode", light ? "1" : "0"); } catch (e) {}
 }
 document.getElementById("themeToggleBtn").addEventListener("click", () => {
   applyTheme(!document.body.classList.contains("light-mode"));
 });
 (function () {
   let saved = null;
-  try { saved = localStorage.getItem("grTrackerLightMode"); } catch (e) {}
+  try { saved = localStorage.getItem("pdTrackerLightMode"); } catch (e) {}
   applyTheme(saved === "1");
 })();
 
@@ -1813,8 +1815,7 @@ loadFromServer(false);
 setInterval(() => loadFromServer(false), REFRESH_INTERVAL_MS);
 
 // ---------- Ticker live, citit direct din Dashboard2026.xlsm ----------
-// Citit prin serverul Python (proxy), ca sa nu fie blocat de browser (CORS).
-const TICKER_XLSX_PATH = 'data/ticker';
+const TICKER_XLSX_PATH = 'http://romhdata03/timkentraining/Dashboard2026.xlsm';
 const TICKER_REFRESH_MINUTES = 5;
 
 // Valori de rezervă, folosite doar dacă fișierul nu poate fi citit

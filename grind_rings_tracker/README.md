@@ -1,8 +1,14 @@
 # Grind Rings Action Tracker
 
-Același dashboard ca *Past Due & PO_Action_Tracker*, dar servit de un singur server Python pe portul **8092**.
-Serverul înlocuiește atât serverul web, cât și `Start-ActionListener.ps1`: servește pagina, Excelul, atașamentele și scrie direct în Excel (adăugare, editare, ștergere).
+`static/index.html` este o copie 1:1 a modelului `past_due_tracker.html`. Diferă doar numele („Grind Rings Action Tracker”, în titlul ferestrei și în antet). Serverul Python o servește pe portul **8092**.
 
+Fiind identică, pagina folosește aceleași adrese ca modelul:
+- Excelul: `http://romhdata03/timkentraining/PD_PO_Action_Tracker.xlsm` (foaia `ActionItemsPastDue`)
+- ascultătorul pentru adăugare/editare/ștergere/atașamente: `http://10.136.82.208:8791/` (`Start-ActionListener.ps1`)
+- atașamentele: `http://romhdata03/timkentraining/attachments/`
+- ticker-ul: `http://romhdata03/timkentraining/Dashboard2026.xlsm`
+
+Serverul are în plus propriile rute de scriere în Excel (vezi mai jos), dar pagina nu le folosește cât timp adresele din ea sunt cele ale modelului.
 ## Pornire
 ```
 pip install openpyxl

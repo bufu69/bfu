@@ -467,9 +467,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error(HTTPStatus.FORBIDDEN)
             return self.send_file(full, download_name=fname)
 
-        if path == "/xlsx.full.min.js":
-            return self.send_file(os.path.join(BASE_DIR, "static", "xlsx.full.min.js"), "application/javascript")
-
         if path == "/health":
             return self.send_json(200, {"ok": True, "app": APP_NAME, "excel": CFG["excel_file"]})
 
