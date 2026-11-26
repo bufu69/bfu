@@ -1,7 +1,10 @@
-config.json
 attachments/
 backups/
+mail_out/
+mail.ini
+server.log
 *.db
 *.db-wal
 *.db-shm
 __pycache__/
+*.exe

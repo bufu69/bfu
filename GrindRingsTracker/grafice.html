@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grind Rings Grafice</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0e14; --surface: #171d27; --surface-2: #1f2632; --border: #2a3241;
+    --text: #edf0f5; --muted: #8d97ac; --grid: #262f3d;
+    --coral: #e1596b; --amber: #e8a33d; --teal: #43b8a6;
+    --s1: #5b8def; --s2: #d07c22; --heading: #4ade80;
+  }
+  body.light-mode {
+    --bg: #eef1f6; --surface: #ffffff; --surface-2: #e9edf3; --border: #b9c3d2;
+    --text: #0b1220; --muted: #3a4558; --grid: #e3e8ef;
+    --coral: #c41d33; --amber: #b35f00; --teal: #0a7d6b;
+    --s1: #3d6fd6; --s2: #c46f12; --heading: #12813a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; padding: 0 16px 40px; }
+  h1, h2, .num { font-family: 'Space Grotesk', sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #e1596b, #9b7ee8); display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk'; font-weight: 700; font-size: 11px; color: #0b0e14; }
+  h1 { font-size: 16px; margin: 0; }
+  .sub { font-size: 11px; color: var(--muted); }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 10px; font: 500 12px 'Inter'; cursor: pointer; text-decoration: none; }
+  .btn:hover { border-color: var(--s1); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .kpi .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .num { font-size: 28px; font-weight: 700; margin-top: 2px; }
+  .kpi .hint { font-size: 11px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; min-width: 0; }
+  .panel.wide { grid-column: 1 / -1; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--heading); margin: 0 0 4px; }
+  .panel .desc { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text); margin-bottom: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  svg { display: block; width: 100%; overflow: visible; }
+  svg text { font-family: 'Inter', sans-serif; fill: var(--muted); font-size: 11px; }
+  svg .val { fill: var(--text); font-weight: 600; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 24px 0; }
+  details { margin-top: 8px; font-size: 12px; }
+  details summary { cursor: pointer; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  #tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.3); display: none; z-index: 10; max-width: 260px; }
+  #tip b { font-weight: 600; }
+  .err { background: rgba(225,89,107,.12); border: 1px solid var(--coral); color: var(--coral); border-radius: 10px; padding: 10px; margin-bottom: 12px; display: none; font-size: 13px; }
+  .hit { fill: transparent; cursor: default; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="brand-mark">GR</div>
+    <div><h1>Grind Rings Action Tracker – Grafice</h1><div class="sub" id="upd">Se încarcă…</div></div>
+  </div>
+  <div class="btns">
+    <a class="btn" href="./">← Tracker</a>
+    <a class="btn" href="api/export.csv">Export CSV</a>
+    <button class="btn" id="themeBtn">Mod luminos</button>
+  </div>
+</header>
+<div class="err" id="err"></div>
+<div class="kpis" id="kpis"></div>
+<div class="grid">
+  <div class="panel wide"><h2>Acțiuni adăugate vs rezolvate</h2><div class="desc">Pe săptămâni, ultimele 12 săptămâni</div><div id="trend"></div></div>
+  <div class="panel"><h2>Distribuție stadiu</h2><div class="desc">Toate acțiunile</div><div id="stadiu"></div></div>
+  <div class="panel"><h2>Vechime acțiuni active</h2><div class="desc">Zile de la adăugare</div><div id="vechime"></div></div>
+  <div class="panel"><h2>Active pe responsabil</h2><div class="desc">Acțiuni nerezolvate</div><div id="resp"></div></div>
+  <div class="panel"><h2>Active pe client</h2><div class="desc">Acțiuni nerezolvate, primii 10</div><div id="client"></div></div>
+  <div class="panel"><h2>Active pe tip acțiune</h2><div class="desc">Acțiuni nerezolvate</div><div id="tip-actiune"></div></div>
+  <div class="panel"><h2>Întârziate pe responsabil</h2><div class="desc">Termen depășit, nerezolvate</div><div id="intarziate"></div></div>
+</div>
+<div id="tip"></div>
+
+<script>
+const REFRESH_MS = 60000;
+const NS = "http://www.w3.org/2000/svg";
+const tip = document.getElementById("tip");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const css = v => getComputedStyle(document.body).getPropertyValue(v).trim();
+
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block"; moveTip(e); }
+function moveTip(e) {
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+function hideTip() { tip.style.display = "none"; }
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function tableHTML(cols, rows) {
+  return `<details><summary>Vezi tabel</summary><table><tr>${cols.map((c, i) => `<th class="${i ? "n" : ""}">${esc(c)}</th>`).join("")}</tr>` +
+    rows.map(r => `<tr>${r.map((v, i) => `<td class="${i ? "n" : ""}">${esc(v)}</td>`).join("")}</tr>`).join("") + `</table></details>`;
+}
+// bara cu capat rotunjit de 4px doar la capatul de date (stanga ramane pe axa)
+function barPath(x, y, w, h, r) {
+  r = Math.min(r, w, h / 2);
+  return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+}
+
+/* ---------- bare orizontale (o singura serie) ---------- */
+function barChart(id, items, color, unit) {
+  const box = document.getElementById(id);
+  if (!items.length) { box.innerHTML = `<div class="empty">Nicio acțiune.</div>`; return; }
+  const W = Math.max(box.clientWidth, 280), rowH = 26, labelW = Math.min(150, W * 0.38), valW = 34;
+  const H = items.length * rowH;
+  const max = Math.max(...items.map(i => i.value), 1);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img" });
+  items.forEach((it, i) => {
+    const y = i * rowH, bw = it.value ? Math.max(2, (W - labelW - valW - 8) * it.value / max) : 0;
+    const t = el("text", { x: labelW - 8, y: y + rowH / 2 + 4, "text-anchor": "end" }, svg);
+    t.textContent = it.label.length > 22 ? it.label.slice(0, 21) + "…" : it.label;
+    if (bw) el("path", { d: barPath(labelW, y + 6, bw, rowH - 12, 4), fill: color }, svg);
+    const v = el("text", { x: labelW + bw + (bw ? 6 : 2), y: y + rowH / 2 + 4, class: "val" }, svg);
+    v.textContent = it.value;
+    const hit = el("rect", { x: 0, y, width: W, height: rowH, class: "hit" }, svg);
+    hit.addEventListener("mouseenter", e => showTip(e, `<b>${esc(it.label)}</b><br>${it.value} ${unit}`));
+    hit.addEventListener("mousemove", moveTip);
+    hit.addEventListener("mouseleave", hideTip);
+  });
+  box.innerHTML = "";
+  box.appendChild(svg);
+  box.insertAdjacentHTML("beforeend", tableHTML(["", unit], items.map(i => [i.label, i.value])));
+}
+
+/* ---------- stadiu: o bara segmentata cu culorile de stare ---------- */
+function stadiuChart(id, counts) {
+  const box = document.getElementById(id);
+  const parts = [["Deschis", "--coral"], ["În lucru", "--amber"], ["Rezolvat", "--teal"]].map(([k, v]) => ({ label: k, value: counts[k] || 0, color: css(v) }));
+  const total = parts.reduce((s, p) => s + p.value, 0);
+  if (!total) { box.innerHTML = `<div class="empty">Nicio acțiune.</div>`; return; }
+  const W = Math.max(box.clientWidth, 280), H = 34;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img" });
+  let x = 0;
+  const live = parts.filter(p => p.value);
+  live.forEach((p, i) => {
+    const w = W * p.value / total - (i < live.length - 1 ? 2 : 0);
+    el("rect", { x, y: 0, width: Math.max(w, 1), height: H, rx: 4, fill: p.color }, svg);
+    const hit = el("rect", { x, y: 0, width: Math.max(w, 1), height: H, class: "hit" }, svg);
+    hit.addEventListener("mouseenter", e => showTip(e, `<b>${p.label}</b><br>${p.value} acțiuni · ${Math.round(p.value / total * 100)}%`));
+    hit.addEventListener("mousemove", moveTip);
+    hit.addEventListener("mouseleave", hideTip);
+    x += w + 2;
+  });
+  box.innerHTML = `<div class="legend">${parts.map(p => `<span><i class="sw" style="background:${p.color}"></i>${p.label} <b>${p.value}</b> (${Math.round(p.value / total * 100)}%)</span>`).join("")}</div>`;
+  box.appendChild(svg);
+  box.insertAdjacentHTML("beforeend", tableHTML(["Stadiu", "Acțiuni"], parts.map(p => [p.label, p.value])));
+}
+
+/* ---------- trend: doua linii, crosshair + tooltip ---------- */
+function lineChart(id, labels, series) {
+  const box = document.getElementById(id);
+  const W = Math.max(box.clientWidth, 300), H = 220, m = { l: 30, r: 78, t: 10, b: 24 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const max = Math.max(1, ...series.flatMap(s => s.values));
+  const step = max <= 5 ? 1 : Math.ceil(max / 4);
+  const top = Math.ceil(max / step) * step;
+  const X = i => m.l + (labels.length > 1 ? iw * i / (labels.length - 1) : iw / 2);
+  const Y = v => m.t + ih - ih * v / top;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img" });
+  for (let v = 0; v <= top; v += step) {
+    el("line", { x1: m.l, x2: m.l + iw, y1: Y(v), y2: Y(v), stroke: css("--grid"), "stroke-width": 1 }, svg);
+    const t = el("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }, svg); t.textContent = v;
+  }
+  labels.forEach((lb, i) => {
+    if (labels.length > 8 && i % 2) return;
+    const t = el("text", { x: X(i), y: H - 6, "text-anchor": "middle" }, svg); t.textContent = lb;
+  });
+  const cross = el("line", { y1: m.t, y2: m.t + ih, stroke: css("--muted"), "stroke-width": 1, "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
+  const dots = [];
+  series.forEach(s => {
+    el("path", { d: s.values.map((v, i) => `${i ? "L" : "M"}${X(i)},${Y(v)}`).join(""), fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    const last = s.values.length - 1;
+    el("circle", { cx: X(last), cy: Y(s.values[last]), r: 4, fill: s.color, stroke: css("--surface"), "stroke-width": 2 }, svg);
+    const t = el("text", { x: X(last) + 8, y: Y(s.values[last]) + 4, class: "val" }, svg);
+    t.textContent = `${s.name} ${s.values[last]}`;
+    dots.push(el("circle", { r: 4, fill: s.color, stroke: css("--surface"), "stroke-width": 2, visibility: "hidden" }, svg));
+  });
+  // evita suprapunerea etichetelor de la capat
+  const ends = [...svg.querySelectorAll("text.val")];
+  if (ends.length === 2 && Math.abs(+ends[0].getAttribute("y") - +ends[1].getAttribute("y")) < 13) {
+    const [a, b] = +ends[0].getAttribute("y") <= +ends[1].getAttribute("y") ? ends : [ends[1], ends[0]];
+    a.setAttribute("y", +a.getAttribute("y") - 7); b.setAttribute("y", +b.getAttribute("y") + 7);
+  }
+  const hit = el("rect", { x: m.l, y: m.t, width: iw, height: ih, class: "hit" }, svg);
+  hit.addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect();
+    const px = (e.clientX - r.left) * W / r.width;
+    const i = Math.max(0, Math.min(labels.length - 1, Math.round((px - m.l) / (iw / Math.max(1, labels.length - 1)))));
+    cross.setAttribute("x1", X(i)); cross.setAttribute("x2", X(i)); cross.setAttribute("visibility", "visible");
+    series.forEach((s, k) => { dots[k].setAttribute("cx", X(i)); dots[k].setAttribute("cy", Y(s.values[i])); dots[k].setAttribute("visibility", "visible"); });
+    showTip(e, `<b>Săpt. ${esc(labels[i])}</b><br>` + series.map(s => `<i class="sw" style="background:${s.color}"></i> ${s.name}: <b>${s.values[i]}</b>`).join("<br>"));
+  });
+  hit.addEventListener("mouseleave", () => { cross.setAttribute("visibility", "hidden"); dots.forEach(d => d.setAttribute("visibility", "hidden")); hideTip(); });
+  box.innerHTML = `<div class="legend">${series.map(s => `<span><i class="sw" style="background:${s.color}"></i>${s.name}</span>`).join("")}</div>`;
+  box.appendChild(svg);
+  box.insertAdjacentHTML("beforeend", tableHTML(["Săptămâna", ...series.map(s => s.name)], labels.map((l, i) => [l, ...series.map(s => s.values[i])])));
+}
+
+/* ---------- date ---------- */
+function day(s) { if (!s) return null; const d = new Date(String(s).slice(0, 10) + "T00:00:00"); return isNaN(d) ? null : d; }
+function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+function countBy(rows, f) {
+  const m = {};
+  rows.forEach(r => { const k = (f(r) || "").trim() || "(necompletat)"; m[k] = (m[k] || 0) + 1; });
+  return Object.entries(m).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+}
+function topN(items, n) {
+  if (items.length <= n) return items;
+  const rest = items.slice(n - 1).reduce((s, i) => s + i.value, 0);
+  return [...items.slice(0, n - 1), { label: "Altele", value: rest }];
+}
+
+let lastRows = [];
+function render(rows) {
+  lastRows = rows;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const active = rows.filter(r => r.Stadiu !== "Rezolvat");
+  const late = active.filter(r => { const d = day(r["Data Planificata"]); return d && d < today; });
+  const urgent = active.filter(r => r["Urgent Client"] === "Da");
+  const resolved = rows.length - active.length;
+  const kpis = [
+    ["Total", rows.length, "acțiuni în baza de date"],
+    ["Active", active.length, "nerezolvate"],
+    ["Întârziate", late.length, "termen depășit"],
+    ["Urgente client", urgent.length, "active, marcate urgent"],
+    ["Rată rezolvare", rows.length ? Math.round(resolved / rows.length * 100) + "%" : "—", `${resolved} rezolvate`],
+  ];
+  document.getElementById("kpis").innerHTML = kpis.map(([l, n, h]) => `<div class="kpi"><div class="lbl">${l}</div><div class="num">${n}</div><div class="hint">${h}</div></div>`).join("");
+
+  // trend 12 saptamani
+  const w0 = weekStart(today); w0.setDate(w0.getDate() - 7 * 11);
+  const labels = [], added = Array(12).fill(0), done = Array(12).fill(0);
+  for (let i = 0; i < 12; i++) { const d = new Date(w0); d.setDate(d.getDate() + 7 * i); labels.push(`${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`); }
+  const idx = d => d ? Math.floor((weekStart(d) - w0) / (7 * 86400000)) : -1;
+  rows.forEach(r => {
+    const a = idx(day(r["Data adaugare"])); if (a >= 0 && a < 12) added[a]++;
+    if (r.Stadiu === "Rezolvat") { const f = idx(day(r["Data Finalizare"])); if (f >= 0 && f < 12) done[f]++; }
+  });
+  lineChart("trend", labels, [{ name: "Adăugate", values: added, color: css("--s1") }, { name: "Rezolvate", values: done, color: css("--s2") }]);
+
+  const st = {}; rows.forEach(r => { st[r.Stadiu] = (st[r.Stadiu] || 0) + 1; });
+  stadiuChart("stadiu", st);
+
+  const buckets = [["0–7 zile", 0, 7], ["8–14 zile", 8, 14], ["15–30 zile", 15, 30], ["31–60 zile", 31, 60], ["peste 60 zile", 61, 1e9]];
+  barChart("vechime", buckets.map(([label, a, b]) => ({ label, value: active.filter(r => { const d = day(r["Data adaugare"]); if (!d) return false; const z = Math.round((today - d) / 86400000); return z >= a && z <= b; }).length })), css("--s1"), "acțiuni");
+
+  barChart("resp", topN(countBy(active, r => r.Responsabil), 12), css("--s1"), "acțiuni active");
+  barChart("client", topN(countBy(active, r => r.Client), 10), css("--s1"), "acțiuni active");
+  barChart("tip-actiune", topN(countBy(active, r => r["Tip Actiune"]), 10), css("--s1"), "acțiuni active");
+  barChart("intarziate", topN(countBy(late, r => r.Responsabil), 12), css("--coral"), "acțiuni întârziate");
+}
+
+async function load() {
+  try {
+    const res = await fetch(`api/actions?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    render(data.rows || []);
+    document.getElementById("err").style.display = "none";
+    document.getElementById("upd").textContent = "actualizat " + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+  } catch (e) {
+    const er = document.getElementById("err");
+    er.textContent = `Nu am putut citi datele (${e.message}). Verifică dacă server.py rulează.`;
+    er.style.display = "block";
+  }
+}
+
+// mod luminos - aceeasi setare ca in tracker
+function applyTheme(light) {
+  document.body.classList.toggle("light-mode", light);
+  document.getElementById("themeBtn").textContent = light ? "Mod întunecat" : "Mod luminos";
+}
+let light = false;
+try { light = localStorage.getItem("pdTrackerLightMode") === "1"; } catch (e) {}
+applyTheme(light);
+document.getElementById("themeBtn").addEventListener("click", () => {
+  light = !light; applyTheme(light);
+  try { localStorage.setItem("pdTrackerLightMode", light ? "1" : "0"); } catch (e) {}
+  render(lastRows);
+});
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => render(lastRows), 150); });
+load();
+setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
