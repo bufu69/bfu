@@ -382,6 +382,7 @@ def toate_datele():
         "incidente": sum(1 for x in inc if not x["inchis"]),
     }
     rez["azi"] = azi
+    rez["gol"] = not any(rez[k] for k in ENTITATI)
     rez["actualizat"] = citeste_setare("ultima_modificare")
     return rez
 
@@ -534,22 +535,24 @@ def importa_excel(sursa, inlocuieste=True, autor="import Excel"):
         st = fara_diacritice(_col(h, r, "status"))
         date_["gc"].append({"dept": _col(h, r, "dept"), "descriere": _col(h, r, "description"), "gc_id": _col(h, r, "id"),
                             "data": _col(h, r, "dates"), "responsabil": _col(h, r, "assigned to"),
-                            "termen": _col(h, r, "closure due date"), "inchis": st in ("closed", "inchis")})
+                            "termen": _col(h, r, "closure due date"), "inchis": st in ("closed", "inchis") or da(_col(h, r, "inchis"))})
     h, rr = _tabel(_foaie(foi, "Echipamente cond. nonstandard"), "echipament in conditii nonstandard")
     for r in rr:
         date_["eq"].append({"sectie": _col(h, r, "sectie"), "echipament": _col(h, r, "echipament in conditii nonstandard"),
                             "motiv": _col(h, r, "motivul"), "status": _col(h, r, "status"),
                             "inregistrat": _col(h, r, "registred", "registered"), "termen": _col(h, r, "due date rezolvare"),
-                            "rezolvat": fara_diacritice(_col(h, r, "status")) in ("rezolvat", "inchis")})
+                            "rezolvat": fara_diacritice(_col(h, r, "status")) in ("rezolvat", "inchis") or da(_col(h, r, "rezolvat"))})
     h, rr = _tabel(_foaie(foi, "Actiuni corective"), "descriere actiune")
     for r in rr:
         date_["ac"].append({"descriere": _col(h, r, "descriere actiune"), "responsabil": _col(h, r, "responsabil"),
-                            "termen": _col(h, r, "termen"), "inchis": False})
+                            "termen": _col(h, r, "termen"),
+                            "inchis": fara_diacritice(_col(h, r, "status", "stadiu")) in ("inchis", "inchisa", "closed", "rezolvat")})
     h, rr = _tabel(_foaie(foi, "Incidente"), "tip incident")
     for r in rr:
         if not str(_col(h, r, "tip incident")).strip() and not str(_col(h, r, "descriere incident")).strip():
             continue
         date_["inc"].append({"tip": _col(h, r, "tip incident") or "—", "descriere": _col(h, r, "descriere incident") or "—",
+                             "data": _col(h, r, "data"),
                              "inchis": fara_diacritice(_col(h, r, "status actiuni")) in ("inchis", "closed")})
     nr = {}
     with db_lock:
@@ -574,6 +577,150 @@ def importa_excel(sursa, inlocuieste=True, autor="import Excel"):
             jurnal(c, "import", 0, "import Excel" + (" (înlocuire)" if inlocuieste else ""), autor, nr)
     scrie_setare("ultima_modificare", acum())
     return nr
+
+
+# ---------------------------------------------------------------- export Excel (fara pachete externe)
+def _xml(s):
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+            .translate({c: None for c in range(32) if c not in (9, 10, 13)}))
+
+
+def _ref(col, row):
+    s = ""
+    col += 1
+    while col:
+        col, r = divmod(col - 1, 26)
+        s = chr(65 + r) + s
+    return f"{s}{row}"
+
+
+def _foaie_xml(antet, randuri, latimi, rosii=None):
+    """randuri: liste de valori; str -> text, int/float -> numar, ('d', iso) -> data.
+    Stiluri: 1 antet, 2 text, 3 data, 4 numar, 5 text rosu (overdue)."""
+    rosii = rosii or set()
+    linii = []
+    celule = "".join(f'<c r="{_ref(i, 1)}" t="inlineStr" s="1"><is><t>{_xml(h)}</t></is></c>' for i, h in enumerate(antet))
+    linii.append(f'<row r="1" ht="22" customHeight="1">{celule}</row>')
+    for nr, rand in enumerate(randuri, start=2):
+        cs = []
+        for i, v in enumerate(rand):
+            ref = _ref(i, nr)
+            if isinstance(v, tuple) and v[0] == "d":
+                if v[1]:
+                    serial = (date.fromisoformat(v[1]) - date(1899, 12, 30)).days
+                    cs.append(f'<c r="{ref}" s="3"><v>{serial}</v></c>')
+            elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                cs.append(f'<c r="{ref}" s="4"><v>{v}</v></c>')
+            elif v not in (None, ""):
+                st = 5 if (nr - 2, i) in rosii else 2
+                cs.append(f'<c r="{ref}" t="inlineStr" s="{st}"><is><t xml:space="preserve">{_xml(v)}</t></is></c>')
+        linii.append(f'<row r="{nr}">{"".join(cs)}</row>')
+    ultim = _ref(len(antet) - 1, max(1, len(randuri) + 1))
+    cols = "".join(f'<col min="{i + 1}" max="{i + 1}" width="{w}" customWidth="1"/>' for i, w in enumerate(latimi))
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+            f'<cols>{cols}</cols><sheetData>{"".join(linii)}</sheetData>'
+            f'<autoFilter ref="A1:{ultim}"/></worksheet>')
+
+
+def export_xlsx():
+    d = toate_datele()
+    i = d["indicatori"]
+    foi = []
+    foi.append(("Dashboard", _foaie_xml(["Indicator", "Valoare"], [
+        ["# Good Catch! deschise", i["gc_deschise"]], ["# Good Catch! overdue", i["gc_overdue"]],
+        ["# Actiuni Corective", i["actiuni"]], ["# Echipamente in conditii nonstandard", i["echipamente"]],
+        ["# Echipamente in conditii nonstandard nerezolvate la timp", i["echipamente_depasite"]],
+        ["# Incidente deschise", i["incidente"]], ["Exportat la", datetime.now().strftime("%d.%m.%Y %H:%M")]], [60, 18])))
+    rosii = set()
+    rr = []
+    for n, x in enumerate(d["gc"]):
+        if x["status"] == "Overdue":
+            rosii.add((n, 4))
+        rr.append([x["dept"], x["descriere"], int(x["gc_id"]) if str(x["gc_id"]).isdigit() else x["gc_id"], ("d", iso(x["data"])),
+                   x["status"], x["responsabil"], ("d", iso(x["termen"])), x["zile_deschis"], x["zile_termen"]])
+    foi.append(("Status GC deschise", _foaie_xml(
+        ["Dept", "Description", "ID", "Dates", "Status", "Assigned To", "Closure Due Date", "Days Open",
+         "Days Past Closure Due/Days to closure"], rr, [18, 70, 10, 12, 11, 20, 16, 11, 16], rosii)))
+    rosii, rr = set(), []
+    for n, x in enumerate(d["eq"]):
+        if x["depasit"]:
+            rosii.add((n, 6))
+        rr.append([("d", iso(x["inregistrat"])), x["sectie"], x["echipament"], x["motiv"], x["status"],
+                   ("d", iso(x["termen"])), "DA" if x["depasit"] else "NU", "DA" if x["rezolvat"] else "NU"])
+    foi.append(("Echipamente cond. nonstandard", _foaie_xml(
+        ["Registred", "Sectie", "Echipament in conditii nonstandard", "Motivul", "Status", "Due date rezolvare",
+         "Scadenta depasita", "Rezolvat"], rr, [12, 16, 34, 40, 14, 16, 16, 10], rosii)))
+    rosii, rr = set(), []
+    for n, x in enumerate(d["ac"]):
+        if x["depasit"]:
+            rosii.add((n, 3))
+        rr.append([x["descriere"], x["responsabil"], ("d", iso(x["termen"])), "Inchis" if x["inchis"] else ("Depasit" if x["depasit"] else "Deschis")])
+    foi.append(("Actiuni corective", _foaie_xml(["Descriere Actiune", "Responsabil", "Termen", "Status"], rr, [60, 22, 12, 12], rosii)))
+    rr = [[x["tip"], x["descriere"], "Inchis" if x["inchis"] else "deschis", ("d", iso(x["data"]))] for x in d["inc"]]
+    foi.append(("Incidente", _foaie_xml(["Tip incident", "Descriere incident", "Status actiuni", "Data"], rr, [24, 60, 14, 12])))
+
+    stiluri = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+               '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+               '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd.mm.yyyy"/></numFmts>'
+               '<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font>'
+               '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+               '<font><b/><sz val="11"/><color rgb="FFC00000"/><name val="Calibri"/></font></fonts>'
+               '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
+               '<fill><patternFill patternType="solid"><fgColor rgb="FF12324A"/><bgColor indexed="64"/></patternFill></fill></fills>'
+               '<borders count="2"><border/><border><left style="thin"><color rgb="FFD0D7DE"/></left><right style="thin"><color rgb="FFD0D7DE"/></right>'
+               '<top style="thin"><color rgb="FFD0D7DE"/></top><bottom style="thin"><color rgb="FFD0D7DE"/></bottom></border></borders>'
+               '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+               '<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+               '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
+               '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+               '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>'
+               '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>'
+               '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>'
+               '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
+    buf = __import__("io").BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+                   '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+                   '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+                   + "".join(f'<Override PartName="/xl/worksheets/sheet{n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' for n in range(1, len(foi) + 1))
+                   + "</Types>")
+        z.writestr("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
+        z.writestr("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+                   + "".join(f'<sheet name="{_xml(nume)}" sheetId="{n}" r:id="rId{n}"/>' for n, (nume, _) in enumerate(foi, 1))
+                   + "</sheets></workbook>")
+        z.writestr("xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   + "".join(f'<Relationship Id="rId{n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{n}.xml"/>' for n in range(1, len(foi) + 1))
+                   + f'<Relationship Id="rId{len(foi) + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>')
+        z.writestr("xl/styles.xml", stiluri)
+        for n, (_, xml) in enumerate(foi, 1):
+            z.writestr(f"xl/worksheets/sheet{n}.xml", xml)
+    return buf.getvalue()
+
+
+def baza_goala():
+    with db() as c:
+        return all(c.execute(f"SELECT COUNT(*) FROM {e['tabel']}").fetchone()[0] == 0 for e in ENTITATI.values())
+
+
+def import_initial():
+    """La prima pornire (baza de date goala): importa automat Excelul pus langa server.py."""
+    if not baza_goala():
+        return
+    for f in sorted(os.listdir(BASE_DIR)):
+        if f.lower().endswith((".xlsm", ".xlsx")) and not f.startswith(("~$", "_")) and "safety" in f.lower():
+            try:
+                nr = importa_excel(os.path.join(BASE_DIR, f), True, "import inițial")
+                print(f"  Import inițial din „{f}”: {nr['gc']} Good Catch, {nr['eq']} echipamente, "
+                      f"{nr['ac']} acțiuni corective, {nr['inc']} incidente.")
+            except Exception as e:  # noqa: BLE001
+                print(f"  ! Importul inițial din „{f}” a eșuat: {e}")
+            return
 
 
 # ---------------------------------------------------------------- setari pagina (texte + imagini)
@@ -669,6 +816,10 @@ class Server(BaseHTTPRequestHandler):
             if p.startswith("/imagini/"):
                 f = os.path.basename(p)
                 return self.fisier(os.path.join(cale(IMAGINI_DIR), f))
+            if p == "/api/export.xlsx":
+                nume = f"Safety_Dashboard_{datetime.now():%Y-%m-%d_%H%M}.xlsx"
+                return self.raspuns(200, export_xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    {"Content-Disposition": f"attachment; filename={nume}"})
             if p == "/api/date":
                 return self.json({"ok": True, **toate_datele()})
             if p == "/api/config":
@@ -792,6 +943,7 @@ class Server(BaseHTTPRequestHandler):
 def porneste():
     if sys.stdout is None or sys.stderr is None:
         sys.stdout = sys.stderr = open(cale("server.log"), "a", encoding="utf-8", buffering=1)
+    import_initial()
     srv = ThreadingHTTPServer((HOST, PORT), Server)
     print(f"{APP_NAME} rulează pe http://{HOST}:{PORT}/   (baza de date: {DB_PATH})")
     if not numar_utilizatori():
@@ -810,6 +962,7 @@ def main():
     ap.add_argument("--numar-utilizatori", action="store_true")
     ap.add_argument("--import-excel", metavar="FISIER")
     ap.add_argument("--adauga", action="store_true", help="cu --import-excel: adaugă fără să șteargă datele existente")
+    ap.add_argument("--export-excel", metavar="FISIER", help="exportă toate datele într-un .xlsx")
     a = ap.parse_args()
     creeaza_db()
     if a.ut:
@@ -822,6 +975,10 @@ def main():
         return print("OK.")
     if a.numar_utilizatori:
         return print(numar_utilizatori())
+    if a.export_excel:
+        with open(a.export_excel, "wb") as f:
+            f.write(export_xlsx())
+        return print(f"Exportat în {a.export_excel}")
     if a.import_excel:
         nr = importa_excel(a.import_excel, not a.adauga)
         return print(f"Importat: {nr['gc']} Good Catch, {nr['eq']} echipamente, {nr['ac']} acțiuni corective, {nr['inc']} incidente.")

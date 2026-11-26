@@ -35,6 +35,8 @@ Section "Program"
   File "editori.bat"
   File "import-excel.bat"
   File "setup-SafetyDashboard.nsi"
+  ; datele initiale (se importa singure la prima pornire), daca fisierul exista langa script
+  File /nonfatal "Dashboard safety.xlsm"
   SetOutPath "$INSTDIR\fonts"
   File "fonts\*.*"
   SetOutPath "$INSTDIR\implicit"

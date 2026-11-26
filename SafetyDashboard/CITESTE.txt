@@ -24,6 +24,7 @@ porneste-dashboard.bat        porneste serverul
 reporneste-dashboard.bat      reporneste serverul
 editori.bat                   utilizatori (utilizator + parola) - si din pagina: Setari -> Utilizatori
 import-excel.bat              importa datele din "Dashboard safety.xlsm"
+Dashboard safety.xlsm         datele initiale: la PRIMA pornire (baza de date goala) se importa singur
 setup-SafetyDashboard.nsi     script pentru installer .exe (NSIS)
 
 Create automat - NU le sterge:
@@ -39,8 +40,10 @@ INSTALARE
    nu in OneDrive.
 2. Dublu-click pe instalare-server.bat si accepta cererea de Administrator.
 3. Creeaza contul de administrator: in instalare sau la prima deschidere a paginii.
-4. Primele date: Setari -> Import Excel -> alegi "Dashboard safety.xlsm"
-   (sau tragi fisierul peste import-excel.bat).
+4. Primele date se incarca SINGURE: la prima pornire, daca baza de date e goala si in folder
+   exista "Dashboard safety.xlsm", serverul il importa automat (toate foile).
+   Altfel: butonul "Import Excel" din bara alba / ecranul "Nu exista inca date",
+   sau tragi fisierul Excel direct peste pagina, sau peste import-excel.bat.
 5. Gata - serverul porneste singur la fiecare pornire a calculatorului.
 
 
@@ -53,6 +56,18 @@ FOLOSIRE
   (ex. "Good Catch overdue" arata doar cele overdue).
 - Good Catch: Status se calculeaza singur - Overdue cand termenul a ajuns (ca in Excel), Open
   altfel, Inchis cand bifezi "Inchis". La fel "Scadenta depasita" la echipamente.
+
+IMPORT / EXPORT EXCEL
+---------------------
+- Export Excel (bara alba de sus sau pagina de detalii): descarca un .xlsx cu toate datele, pe
+  aceleasi foi ca "Dashboard safety.xlsm" (Dashboard, Status GC deschise, Echipamente cond.
+  nonstandard, Actiuni corective, Incidente), cu antet colorat, filtre si datele formatate.
+- Fisierul exportat se poate importa inapoi (ex. pe alt calculator) - se pastreaza tot,
+  inclusiv ce e inchis / rezolvat.
+- Import Excel (administratori): buton "Import Excel", tragere fisier peste pagina sau
+  Setari -> Import Excel. Inainte de import se face automat un backup.
+- Din linia de comanda: python server.py --export-excel fisier.xlsx
+
 
 SETARI (Autentificare -> butonul cu numele tau)
 ------

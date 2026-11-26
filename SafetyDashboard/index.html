@@ -160,21 +160,70 @@ header.antet {
 .card .detalii { align-self: center; justify-self: center; width: 5.6rem; height: 2.45rem; border: 1px solid #2a2a2a; border-radius: .2rem; background: var(--yellow); color: #111; font-family: var(--sans); font-weight: 700; font-size: .86rem; letter-spacing: .03em; cursor: pointer; box-shadow: 0 2px 0 rgba(0,0,0,.25); transition: transform .15s, background .15s, color .15s; }
 .card .detalii:hover { transform: translateY(-1px); background: #111; color: var(--yellow); }
 .card .extra { grid-column: 1 / -1; padding: .2rem .7rem .75rem; background: #fff; }
-.eq { border: 1px solid #dbe3e8; border-radius: .45rem; padding: .6rem .8rem .55rem; margin-top: .55rem; background: #fbfdfe; cursor: pointer; transition: border-color .2s, box-shadow .2s; }
-.eq:hover { border-color: #9fb8c6; box-shadow: 0 3px 10px rgba(0, 0, 0, .08); }
-.eq .sus { display: flex; justify-content: space-between; align-items: center; gap: .6rem; font-weight: 700; font-size: .95rem; color: #16212b; }
-.eq .ins { font-size: .7rem; font-weight: 700; letter-spacing: .03em; padding: .12rem .45rem; border-radius: .2rem; }
-.eq .ins.ok { color: var(--ok); background: var(--ok-soft); } .eq .ins.rau { color: var(--bad); background: var(--bad-soft); }
-.eq .meta { font-size: .72rem; color: #5d6f7c; margin: .2rem 0 .5rem; }
-.eq .meta b { font-weight: 500; color: #3c4b57; margin-right: 1.2rem; }
-.eq .pista { height: .72rem; border-radius: 99px; background: #e1e8ec; overflow: hidden; }
-.eq .umplut { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #52b947 0%, #a6c63a 45%, #f3c22a 100%); transition: width .9s ease; }
-.eq .umplut.rau { background: linear-gradient(90deg, #f37a80, #e3262d); }
-.eq .jos { display: flex; justify-content: space-between; font-size: .72rem; font-weight: 700; color: #33444f; margin-top: .4rem; }
+.eq { position: relative; border: 1px solid #dbe3e8; border-radius: .5rem; padding: .65rem .85rem .6rem; margin-top: .55rem;
+  background: linear-gradient(180deg, #ffffff, #f6f9fb); cursor: pointer; transition: border-color .2s, box-shadow .2s, transform .2s; overflow: hidden; }
+.eq::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: .28rem; background: var(--accent, #22a95b); }
+.eq:hover { border-color: #9fb8c6; box-shadow: 0 6px 18px rgba(16, 40, 60, .12); transform: translateY(-1px); }
+.eq .sus { display: flex; justify-content: space-between; align-items: center; gap: .6rem; font-weight: 700; font-size: .98rem; color: #16212b; }
+.eq .sus .nume { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.eq .sus .nume small { font-weight: 600; font-size: .7rem; color: #5d6f7c; background: #edf2f5; border-radius: .2rem; padding: .05rem .35rem; }
+.eq .ins { display: inline-flex; align-items: center; gap: .35rem; font-size: .7rem; font-weight: 800; letter-spacing: .05em; padding: .18rem .5rem; border-radius: 99px; white-space: nowrap; }
+.eq .ins i { width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; }
+.eq .ins.ok { color: #128048; background: #dcf5e6; } .eq .ins.atentie { color: #9a6200; background: #fff1cc; }
+.eq .ins.rau { color: #c81e25; background: #fde2e2; } .eq .ins.rau i { animation: clipeste 1.2s ease-in-out infinite; }
+@keyframes clipeste { 50% { opacity: .25; transform: scale(.7); } }
+.eq .meta { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .72rem; color: #5d6f7c; margin: .25rem 0 .55rem; }
+.eq .meta b { font-weight: 700; color: #2c3a45; }
+/* bara de progres */
+.bara { position: relative; height: 1.05rem; margin: 0 2.6rem 0 0; }
+.bara .pista { position: absolute; inset: 0; border-radius: 99px; background: linear-gradient(180deg, #dde6eb, #eef3f6); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .18); overflow: hidden; }
+.bara .pista::after { content: ""; position: absolute; inset: 0; background:
+  linear-gradient(90deg, transparent calc(25% - 1px), rgba(255,255,255,.9) calc(25% - 1px) 25%, transparent 25%),
+  linear-gradient(90deg, transparent calc(50% - 1px), rgba(255,255,255,.9) calc(50% - 1px) 50%, transparent 50%),
+  linear-gradient(90deg, transparent calc(75% - 1px), rgba(255,255,255,.9) calc(75% - 1px) 75%, transparent 75%); }
+.bara .umplut { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 99px; overflow: hidden;
+  transition: width 1.4s cubic-bezier(.22, .9, .24, 1); box-shadow: 0 0 10px var(--stralucire, rgba(34, 169, 91, .45)), inset 0 1px 0 rgba(255,255,255,.45); }
+.bara .umplut::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,0) 55%, rgba(0,0,0,.08)); }
+.bara .umplut::after { content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.65), transparent); animation: lucire 3.6s ease-in-out infinite; }
+@keyframes lucire { 0% { left: -40%; } 60%, 100% { left: 110%; } }
+.bara.ok .umplut { background: linear-gradient(90deg, #12a150, #46c35a 55%, #8bd448); --stralucire: rgba(34, 169, 91, .5); }
+.bara.atentie .umplut { background: linear-gradient(90deg, #47b955, #c4cf2e 45%, #f5c018 75%, #f59e0b); --stralucire: rgba(245, 158, 11, .5); }
+.bara.critic .umplut { background: linear-gradient(90deg, #8bc34a, #f5c018 35%, #f7891f 70%, #ef5a24); --stralucire: rgba(239, 90, 36, .55); }
+.bara.rau .umplut { background: repeating-linear-gradient(-45deg, #e3262d 0 .55rem, #c51d24 .55rem 1.1rem); background-size: 1.56rem 1.56rem;
+  animation: dungiRosii 1s linear infinite, pulsRosu 1.8s ease-in-out infinite; --stralucire: rgba(227, 38, 45, .6); }
+@keyframes dungiRosii { to { background-position: 1.56rem 0; } }
+@keyframes pulsRosu { 50% { box-shadow: 0 0 18px rgba(227, 38, 45, .85), inset 0 1px 0 rgba(255,255,255,.45); } }
+.bara .cap { position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%); transition: left 1.4s cubic-bezier(.22, .9, .24, 1); z-index: 1; }
+.bara .cap span { display: block; min-width: 2.6rem; text-align: center; font-size: .68rem; font-weight: 800; color: #fff; padding: .14rem .38rem; border-radius: 99px;
+  background: #1c2a35; box-shadow: 0 2px 8px rgba(0,0,0,.28), 0 0 0 2px #fff; animation: apare .5s .9s both cubic-bezier(.3, 1.6, .5, 1); }
+.bara.ok .cap span { background: #128048; } .bara.atentie .cap span { background: #b07400; } .bara.critic .cap span { background: #d4521c; } .bara.rau .cap span { background: #c81e25; }
+@keyframes apare { from { transform: scale(0); opacity: 0; } }
+.bara .final { position: absolute; right: -2.6rem; top: 50%; transform: translateY(-50%); width: 2.3rem; text-align: center; font-size: 1rem; line-height: 1; }
+.eq .jos { display: flex; justify-content: space-between; gap: .6rem; font-size: .72rem; font-weight: 700; color: #33444f; margin-top: .45rem; }
+.eq .jos .rest { font-variant-numeric: tabular-nums; }
+.eq .jos .rest.rau { color: #c81e25; } .eq .jos .rest.atentie { color: #b07400; }
+/* mini-bare in tabele */
+.mini-bara { display: flex; align-items: center; gap: .45rem; min-width: 8rem; }
+.mini-bara .p { flex: 1; height: .5rem; border-radius: 99px; background: #e3eaee; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.12); }
+.mini-bara .p i { display: block; height: 100%; border-radius: 99px; width: 0; transition: width 1s cubic-bezier(.22, .9, .24, 1); }
+.mini-bara.ok i { background: linear-gradient(90deg, #12a150, #8bd448); } .mini-bara.atentie i { background: linear-gradient(90deg, #c4cf2e, #f59e0b); }
+.mini-bara.critic i { background: linear-gradient(90deg, #f5c018, #ef5a24); } .mini-bara.rau i { background: repeating-linear-gradient(-45deg, #e3262d 0 4px, #c51d24 4px 8px); }
+.mini-bara b { font-size: .72rem; min-width: 2.4rem; text-align: right; font-variant-numeric: tabular-nums; }
+/* ecran gol / import */
+.gol-mare { background: rgba(255,255,255,.97); color: var(--ink); border-radius: .5rem; padding: 2rem 1.6rem; text-align: center; box-shadow: 0 10px 28px rgba(0,0,0,.4); }
+.gol-mare h3 { margin: .2rem 0 .4rem; font-family: var(--cond); font-size: 1.8rem; }
+.gol-mare p { margin: 0 auto 1.1rem; max-width: 34rem; color: #4b5b67; }
+.gol-mare .ico { font-size: 2.6rem; }
+.zona-drop { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; background: rgba(3, 10, 18, .82); backdrop-filter: blur(3px); }
+.zona-drop.activ { display: grid; }
+.zona-drop div { border: 3px dashed var(--yellow); border-radius: 1rem; padding: 3rem 4rem; text-align: center; font-family: var(--cond); font-size: 2rem; font-weight: 700; color: #fff; background: rgba(6, 24, 38, .8); }
+.zona-drop small { display: block; font-family: var(--sans); font-size: 1rem; font-weight: 500; color: #a9c4d3; margin-top: .5rem; }
 .nota { background: rgba(253, 246, 220, .97); color: #4a3d0a; border-left: .3rem solid var(--yellow); border-radius: .3rem; padding: .6rem .8rem; font-size: .76rem; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
 
 /* ================= pagina de detalii ================= */
 .lista-carduri { display: contents; }
+.lista-carduri.ascuns { display: none !important; }
 .detalii-pag { display: none; flex-direction: column; gap: .7rem; }
 .mod-detalii .lista-carduri { display: none; }
 .mod-detalii .detalii-pag { display: flex; }
@@ -440,9 +489,17 @@ td.act button:hover { border-color: #12324a; }
   <main class="centru">
     <div class="bara-stare">
       <span class="txt" id="stare">Se încarcă datele…</span>
+      <button id="btnExport" title="Descarcă toate datele într-un fișier Excel">⬇ Export Excel</button>
+      <button id="btnImportRapid" class="ascuns" title="Importă dintr-un fișier Excel">⬆ Import Excel</button>
       <span id="zonaUser"></span>
     </div>
 
+    <div class="gol-mare ascuns" id="golMare">
+      <div class="ico">📊</div>
+      <h3>Nu există încă date</h3>
+      <p id="golText">Importă fișierul <b>Dashboard safety.xlsm</b> ca să populezi dashboard-ul cu toate datele (Good Catch, echipamente, acțiuni corective, incidente). Poți și să tragi fișierul direct peste pagină.</p>
+      <button class="btn galben" id="btnGolImport" style="height:2.8rem;font-size:1rem">⬆ Importă din Excel</button>
+    </div>
     <div class="lista-carduri">
       <div class="banda"><span id="banda">SAFETY FIRST • SEE IT • OWN IT • FIX IT</span></div>
       <div class="card"><div class="eticheta albastru"># Good Catch! deschise</div><div class="val albastru" id="vGcOpen">0</div><button class="detalii" data-deschide="gc">DETALII</button></div>
@@ -458,6 +515,7 @@ td.act button:hover { border-color: #12324a; }
       <div class="det-sus">
         <h2 id="detTitlu">Detalii</h2>
         <button class="btn galben" id="btnAdauga">＋ Adaugă</button>
+        <button class="btn alb" id="btnExportDet" title="Descarcă toate datele în Excel">⬇ Export Excel</button>
         <button class="btn inchis" id="btnInapoi">← Dashboard</button>
       </div>
       <div class="taburi" id="detTaburi" role="tablist"></div>
@@ -611,6 +669,8 @@ td.act button:hover { border-color: #12324a; }
 </div></div>
 
 <div class="toast" id="toast"></div>
+<div class="zona-drop" id="zonaDrop"><div>⬆ Eliberează fișierul Excel aici<small>Datele din „Dashboard safety.xlsm” vor fi importate</small></div></div>
+<input type="file" id="inExcelRapid" accept=".xlsx,.xlsm" class="ascuns">
 
 <script>
 "use strict";
@@ -692,6 +752,10 @@ function numar(id, v) {
 
 function deseneaza() {
   const i = D.indicatori;
+  $("golMare").classList.toggle("ascuns", !D.gol);
+  document.querySelector(".lista-carduri").classList.toggle("ascuns", !!D.gol);
+  const admin = eu && eu.rol === "admin";
+  $("btnGolImport").textContent = admin ? "⬆ Importă din Excel" : "🔒 Autentifică-te ca administrator";
   [["tGcOpen", i.gc_deschise], ["vGcOpen", i.gc_deschise], ["tGcOver", i.gc_overdue], ["vGcOver", i.gc_overdue], ["tAc", i.actiuni], ["vAc", i.actiuni],
    ["tEq", i.echipamente], ["vEq", i.echipamente], ["tEqLate", i.echipamente_depasite], ["vEqLate", i.echipamente_depasite]].forEach(([k, v]) => numar(k, v));
   deseneazaEq();
@@ -699,30 +763,49 @@ function deseneaza() {
 }
 
 function zi(s) { return s ? new Date(s + "T00:00:00") : null; }
+// progres = timpul consumat intre inregistrare si termen
+function progres(start, termen, depasit) {
+  const azi = zi(D.azi), st = zi(start), du = zi(termen);
+  if (!st || !du || du <= st) return { pct: depasit ? 100 : 0, clasa: depasit ? "rau" : "ok", zile: du ? Math.round((du - azi) / 864e5) : null };
+  const pct = Math.max(0, Math.min(100, Math.round((azi - st) / (du - st) * 100)));
+  const zile = Math.round((du - azi) / 864e5);
+  return { pct, zile, clasa: depasit ? "rau" : pct >= 85 ? "critic" : pct >= 60 ? "atentie" : "ok" };
+}
+const PCT_VECHI = new Map();
+function animaBare(radacina) {
+  const fara = document.body.classList.contains("fara-efecte");
+  radacina.querySelectorAll("[data-pct]").forEach(el => {
+    const tinta = +el.dataset.pct, cheie = el.dataset.cheie, vechi = PCT_VECHI.has(cheie) ? PCT_VECHI.get(cheie) : 0;
+    const um = el.querySelector(".umplut, i"), cap = el.querySelector(".cap");
+    if (um) um.style.width = (fara ? tinta : vechi) + "%";
+    const poz = v => `min(${v}%, calc(100% - 1.45rem))`;  // eticheta nu iese peste capatul barei
+    if (cap) cap.style.left = poz(fara ? tinta : vechi);
+    PCT_VECHI.set(cheie, tinta);
+    if (!fara) requestAnimationFrame(() => requestAnimationFrame(() => { if (um) um.style.width = tinta + "%"; if (cap) cap.style.left = poz(tinta); }));
+  });
+}
 function deseneazaEq() {
-  const azi = zi(D.azi);
   const lista = D.eq.filter(e => !e.rezolvat);
+  const ACCENT = { ok: "#22a95b", atentie: "#f0a400", critic: "#ef5a24", rau: "#e3262d" };
   $("listaEq").innerHTML = lista.length ? lista.map(e => {
-    const st = zi(e.inregistrat), du = zi(e.termen);
-    let pct = 0, msg = "Date incomplete";
-    const late = !!e.depasit;
-    if (st && du && du > st) {
-      pct = Math.max(0, Math.min(100, Math.round((azi - st) / (du - st) * 100)));
-      const z = Math.round((du - azi) / 864e5);
-      msg = late ? `OVERDUE • ${Math.abs(z)} zile` : z === 0 ? "TERMEN AZI" : `${z} zile rămase`;
-    } else if (late) { pct = 100; msg = "OVERDUE"; }
-    return `<div class="eq" data-ent="eq" data-id="${e.id}" title="Click pentru editare">
-      <div class="sus"><span>${esc(e.echipament)}</span><span class="ins ${late ? "rau" : "ok"}">${late ? "OVERDUE" : "IN TERMEN"}</span></div>
-      <div class="meta"><b>Registred: ${ro(e.inregistrat) || "—"}</b><b>Due date: ${ro(e.termen) || "—"}</b></div>
-      <div class="pista"><div class="umplut ${late ? "rau" : ""}" style="width:${pct}%"></div></div>
-      <div class="jos"><span>${pct}% timp consumat</span><span>${msg}</span></div></div>`;
-  }).join("") : `<div class="gol" style="padding:.8rem">Niciun echipament în condiții nonstandard.</div>`;
+    const p = progres(e.inregistrat, e.termen, e.depasit);
+    let msg = "Date incomplete";
+    if (p.zile !== null) msg = e.depasit ? `OVERDUE • ${Math.abs(p.zile)} ${Math.abs(p.zile) === 1 ? "zi" : "zile"}` : p.zile === 0 ? "TERMEN AZI" : `${p.zile} ${p.zile === 1 ? "zi rămasă" : "zile rămase"}`;
+    const chip = e.depasit ? ["rau", "OVERDUE"] : p.clasa === "ok" ? ["ok", "IN TERMEN"] : ["atentie", "ATENȚIE"];
+    return `<div class="eq" data-ent="eq" data-id="${e.id}" title="Click pentru editare" style="--accent:${ACCENT[p.clasa]}">
+      <div class="sus"><span class="nume">${esc(e.echipament)}${e.sectie ? `<small>${esc(e.sectie)}</small>` : ""}</span><span class="ins ${chip[0]}"><i></i>${chip[1]}</span></div>
+      <div class="meta"><span>Registred: <b>${ro(e.inregistrat) || "—"}</b></span><span>Due date: <b>${ro(e.termen) || "—"}</b></span>${e.motiv ? `<span>${esc(e.motiv)}</span>` : ""}</div>
+      <div class="bara ${p.clasa}" data-pct="${p.pct}" data-cheie="eq${e.id}" role="progressbar" aria-valuenow="${p.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Timp consumat ${esc(e.echipament)}">
+        <div class="pista"><div class="umplut"></div></div><div class="cap"><span>${p.pct}%</span></div><div class="final">${e.depasit ? "⚠️" : "🏁"}</div></div>
+      <div class="jos"><span>${p.pct}% timp consumat</span><span class="rest ${e.depasit ? "rau" : p.clasa === "ok" ? "" : "atentie"}">${msg}</span></div></div>`;
+  }).join("") : `<div class="gol" style="padding:.8rem">Niciun echipament în condiții nonstandard. 👍</div>`;
+  animaBare($("listaEq"));
 }
 
 /* ---------------- pagina de detalii ---------------- */
 const VEDERI = {
-  gc: { titlu: "Good Catch – Detalii", col: [["gc_id", "ID"], ["dept", "Dept"], ["descriere", "Descriere"], ["data", "Data", "d"], ["status", "Status"], ["responsabil", "Assigned To"], ["termen", "Closure Due", "d"], ["zile_deschis", "Zile deschis", "n"], ["zile_termen", "Zile până la termen", "n"]], inchis: x => x.inchis },
-  eq: { titlu: "Echipamente nonstandard – Detalii", col: [["sectie", "Secție"], ["echipament", "Echipament"], ["motiv", "Motivul"], ["status", "Status"], ["inregistrat", "Registered", "d"], ["termen", "Due date", "d"], ["depasit", "Scadență depășită"]], inchis: x => x.rezolvat },
+  gc: { titlu: "Good Catch – Detalii", col: [["gc_id", "ID"], ["dept", "Dept"], ["descriere", "Descriere"], ["data", "Data", "d"], ["status", "Status"], ["responsabil", "Assigned To"], ["termen", "Closure Due", "d"], ["_progres", "Timp consumat"], ["zile_deschis", "Zile deschis", "n"], ["zile_termen", "Zile până la termen", "n"]], inchis: x => x.inchis, start: "data" },
+  eq: { titlu: "Echipamente nonstandard – Detalii", col: [["sectie", "Secție"], ["echipament", "Echipament"], ["motiv", "Motivul"], ["status", "Status"], ["inregistrat", "Registered", "d"], ["termen", "Due date", "d"], ["_progres", "Timp consumat"], ["depasit", "Scadență depășită"]], inchis: x => x.rezolvat, start: "inregistrat" },
   ac: { titlu: "Acțiuni corective – Detalii", col: [["descriere", "Descriere acțiune"], ["responsabil", "Responsabil"], ["termen", "Termen", "d"], ["inchis", "Stadiu"]], inchis: x => x.inchis },
   inc: { titlu: "Incidente – Detalii", col: [["tip", "Tip incident"], ["descriere", "Descriere"], ["data", "Data", "d"], ["inchis", "Status acțiuni"]], inchis: x => x.inchis },
 };
@@ -734,6 +817,12 @@ function deschideDetalii(ent, f) {
 }
 function inchideDetalii() { vedere = null; document.body.classList.remove("mod-detalii"); }
 function celula(ent, x, [k, , tip]) {
+  if (k === "_progres") {
+    const inch = ent === "gc" ? x.inchis : x.rezolvat;
+    if (inch) return `<td><span class="badge b-inch">Închis</span></td>`;
+    const p = progres(x[VEDERI[ent].start], x.termen, ent === "gc" ? x.status === "Overdue" : x.depasit);
+    return `<td><div class="mini-bara ${p.clasa}" data-pct="${p.pct}" data-cheie="t${ent}${x.id}"><div class="p"><i></i></div><b>${p.pct}%</b></div></td>`;
+  }
   const v = x[k];
   if (k === "status" && ent === "gc") return `<td><span class="badge ${v === "Overdue" ? "b-over" : v === "Open" ? "b-open" : "b-inch"}">${esc(v)}</span></td>`;
   if (k === "depasit") return `<td class="${v ? "rosu" : "verde"}">${v ? "DA" : "NU"}</td>`;
@@ -757,13 +846,15 @@ function deseneazaDetalii() {
   if (q) rows = rows.filter(x => V.col.some(([k]) => String(x[k] ?? "").toLowerCase().includes(q)));
   if (sortare.k) {
     const k = sortare.k;
-    rows = [...rows].sort((a, b) => { const x = a[k] ?? "", y = b[k] ?? ""; return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "ro", { numeric: true })) * sortare.dir; });
+    const val = r => k === "_progres" ? progres(r[V.start], r.termen, false).pct : r[k];
+    rows = [...rows].sort((a, b) => { const x = val(a) ?? "", y = val(b) ?? ""; return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "ro", { numeric: true })) * sortare.dir; });
   }
   const filtruTxt = filtru === "overdue" ? " (doar overdue)" : filtru === "depasite" ? " (doar depășite)" : "";
   $("detTitlu").textContent = V.titlu + filtruTxt;
   $("detTabel").innerHTML = `<thead><tr>${V.col.map(([k, t]) => `<th data-k="${k}" class="${sortare.k === k ? "sortat" : ""}">${t}<span class="sag">${sortare.k === k ? (sortare.dir > 0 ? "↑" : "↓") : "↕"}</span></th>`).join("")}<th></th></tr></thead>
     <tbody>${rows.map(x => `<tr data-ent="${vedere}" data-id="${x.id}">${V.col.map(c => celula(vedere, x, c)).join("")}<td class="act">${eu ? `<button data-a="edit" title="Modifică">✎</button>` : ""}</td></tr>`).join("")}</tbody>`
     + (rows.length ? "" : `<tbody><tr><td colspan="${V.col.length + 1}" class="gol">Nu există înregistrări${filtruTxt}.</td></tr></tbody>`);
+  animaBare($("detTabel"));
 }
 
 /* ---------------- formular editare ---------------- */
@@ -825,11 +916,42 @@ $("fSalveaza").onclick = salveazaForm; $("fSterge").onclick = stergeForm;
 $("formRec").onsubmit = e => { e.preventDefault(); salveazaForm(); };
 
 /* ---------------- autentificare ---------------- */
+async function importaFisier(f, inlocuieste = true) {
+  if (!f) return;
+  if (!/\.(xlsx|xlsm)$/i.test(f.name)) { toast("Alege un fișier Excel (.xlsx sau .xlsm)."); return; }
+  if (!eu || eu.rol !== "admin") { if (!(await cereLogin())) return; if (eu.rol !== "admin") { toast("Doar un administrator poate importa."); return; } }
+  if (!D.gol && inlocuieste && !confirm(`Importi „${f.name}”?\n\nToate datele actuale vor fi ÎNLOCUITE cu cele din Excel (se face backup înainte).`)) return;
+  toast("Se importă…");
+  try {
+    const j = await api("api/import-excel", { continut: await citesteB64(f), inlocuieste });
+    D = j; deseneaza();
+    const n = j.importat;
+    toast(`Importat: ${n.gc} Good Catch, ${n.eq} echipamente, ${n.ac} acțiuni corective, ${n.inc} incidente.`);
+  } catch (e) { toast("Import eșuat: " + e.message); }
+}
+function exportExcel() { const a = document.createElement("a"); a.href = "api/export.xlsx?t=" + Date.now(); a.download = ""; document.body.appendChild(a); a.click(); a.remove(); toast("Se descarcă fișierul Excel…"); }
+$("btnExport").onclick = exportExcel; $("btnExportDet").onclick = exportExcel;
+const alegeExcel = async () => {
+  if (!eu || eu.rol !== "admin") { if (!(await cereLogin())) return; if (eu.rol !== "admin") { toast("Doar un administrator poate importa."); return; } }
+  $("inExcelRapid").value = ""; $("inExcelRapid").click();
+};
+$("btnImportRapid").onclick = alegeExcel; $("btnGolImport").onclick = alegeExcel;
+$("inExcelRapid").onchange = () => importaFisier($("inExcelRapid").files[0]);
+// trage fisierul Excel peste pagina
+let adancimeDrag = 0;
+const areFisier = e => [...(e.dataTransfer?.types || [])].includes("Files");
+addEventListener("dragenter", e => { if (!areFisier(e)) return; e.preventDefault(); adancimeDrag++; $("zonaDrop").classList.add("activ"); });
+addEventListener("dragover", e => { if (areFisier(e)) e.preventDefault(); });
+addEventListener("dragleave", e => { if (!areFisier(e)) return; if (--adancimeDrag <= 0) { adancimeDrag = 0; $("zonaDrop").classList.remove("activ"); } });
+addEventListener("drop", e => { if (!areFisier(e)) return; e.preventDefault(); adancimeDrag = 0; $("zonaDrop").classList.remove("activ"); importaFisier(e.dataTransfer.files[0]); });
+
 function zonaUser() {
   $("zonaUser").innerHTML = eu
     ? `<button id="btnSetari" title="Setări">⚙ ${esc(eu.nume)}</button><button id="btnIesire">Ieșire</button>`
     : `<button id="btnIntra" title="Autentificare pentru editare">🔒 Autentificare</button>`;
+  $("btnImportRapid").classList.toggle("ascuns", !(eu && eu.rol === "admin"));
   if (vedere) deseneazaDetalii();
+  if (D) deseneaza();
 }
 $("zonaUser").addEventListener("click", async e => {
   if (e.target.closest("#btnIntra")) cereLogin();
@@ -852,6 +974,7 @@ function cereLogin(init = false) {
         if (init) { if (d.parola !== $("lgParola2").value) throw new Error("Parolele nu coincid."); d.nume = $("lgNume").value.trim(); } else d.tine_minte = $("lgTine").checked;
         const j = await api(init ? "api/initializare" : "api/login", d);
         eu = j.eu; CFG.configurat = true; zonaUser(); inchideVoal("voalLogin"); toast(init ? "Cont creat. Ești administrator." : `Bun venit, ${eu.nume}!`);
+        if (init && D && D.gol) setTimeout(alegeExcel, 400);
       } catch (er) { mesaj("lgMesaj", er.message, "err"); }
     };
     deschideVoal("voalLogin"); setTimeout(() => (init ? $("lgNume") : $("lgUser")).focus(), 50);

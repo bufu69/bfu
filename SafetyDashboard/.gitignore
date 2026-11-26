@@ -7,3 +7,5 @@ python.txt
 _import.xlsx
 __pycache__/
 *.exe
+*.xlsm
+*.xlsx
