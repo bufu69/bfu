@@ -18,7 +18,9 @@ Pornire:  python grind_rings_server.py            (necesita: pip install openpyx
 Setari:   config.json langa acest script (vezi config.example.json).
 """
 
+import argparse
 import base64
+import csv
 import json
 import mimetypes
 import os
@@ -27,6 +29,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 import unicodedata
 import urllib.request
 from datetime import date, datetime
@@ -56,6 +59,9 @@ DEFAULT_CONFIG = {
     # Codurile personale: "cod": "Nume". Numele apare in comentarii.
     "pins": {"1234": "Admin"},
     "max_upload_mb": 25,
+    # Backup zilnic al Excelului inainte de prima scriere din zi; cate zile se pastreaza.
+    "backup_dir": "backups",
+    "backup_keep_days": 30,
 }
 
 FIELD_KEYWORDS = {
@@ -109,7 +115,7 @@ def load_config():
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             cfg.update(json.load(f))
-    for key in ("excel_file", "attachments_dir"):
+    for key in ("excel_file", "attachments_dir", "backup_dir"):
         if not os.path.isabs(cfg[key]):
             cfg[key] = os.path.join(BASE_DIR, cfg[key])
     cfg["pins"] = {str(k): str(v) for k, v in cfg.get("pins", {}).items()}
@@ -209,15 +215,45 @@ def open_sheet():
     return wb, ws, colmap
 
 
+def daily_backup():
+    """Copie a Excelului o data pe zi, inainte de prima modificare; sterge copiile vechi."""
+    path, bdir = CFG["excel_file"], CFG["backup_dir"]
+    if not os.path.exists(path):
+        return
+    os.makedirs(bdir, exist_ok=True)
+    stem, ext = os.path.splitext(os.path.basename(path))
+    target = os.path.join(bdir, f"{stem}_{date.today():%Y-%m-%d}{ext}")
+    if not os.path.exists(target):
+        shutil.copy2(path, target)
+    keep = int(CFG.get("backup_keep_days") or 0)
+    if keep > 0:
+        olds = sorted(f for f in os.listdir(bdir) if f.startswith(stem + "_") and f.endswith(ext))
+        for f in olds[:-keep]:
+            try:
+                os.remove(os.path.join(bdir, f))
+            except OSError:
+                pass
+
+
 def save_workbook(wb):
     path = CFG["excel_file"]
+    daily_backup()
     fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(path)[1], dir=os.path.dirname(path))
     os.close(fd)
     try:
         wb.save(tmp)
-        os.replace(tmp, path)
+        # pe Windows fisierul poate fi blocat cateva clipe (antivirus, cineva il citeste)
+        for attempt in range(5):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(1)
     except PermissionError:
-        os.remove(tmp)
+        if os.path.exists(tmp):
+            os.remove(tmp)
         raise RuntimeError("Fișierul Excel este deschis/blocat de alt program. Închide-l și încearcă din nou.")
     except Exception:
         if os.path.exists(tmp):
@@ -278,7 +314,7 @@ def add_action(data, user):
         no = max(nums, default=0) + 1
         set_cell(ws, row, colmap["no"], no)
         set_cell(ws, row, colmap["dataAdaugare"], parse_date(data.get("dataAdaugare")) or datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
-        write_fields(ws, row, colmap, data)
+        write_fields(ws, row, colmap, {"urgent": "Nu", **data})
         set_cell(ws, row, colmap["stadiu"], data.get("stadiu") or "Deschis")
         set_cell(ws, row, colmap["comentarii"], stamp_comment(data.get("comentarii"), user))
         save_workbook(wb)
@@ -501,8 +537,38 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404, {"ok": False, "error": "Rută necunoscută"})
 
 
+def import_pending_csv(csv_path):
+    """Importa randurile din pending_new_actions.csv (coada salvata de browser cand serverul nu raspundea)."""
+    keys = {"data adaugare": "dataAdaugare", "sap id rulment": "sapRulment", "descriere rulment": "descRulment",
+            "familie rulment": "familie", "comanda montaj": "comandaMontaj", "client": "client",
+            "sap id component": "sapComponent", "descriere component": "descComponent",
+            "tip component": "tipComponent", "comanda component": "comandaComponent", "qty": "qty",
+            "actiune": "actiune", "tip actiune": "tipActiune", "responsabil": "responsabil",
+            "data planificata": "dataPlanificata", "urgent client": "urgent", "comentarii": "comentarii"}
+    with open(csv_path, encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    count = 0
+    for r in rows:
+        data = {keys[norm(k)]: v for k, v in r.items() if k and norm(k) in keys}
+        if not any(str(v).strip() for v in data.values()):
+            continue
+        no = add_action(data, "import CSV")
+        count += 1
+        print(f"  + #{no}: {data.get('client', '')} - {data.get('actiune', '')}")
+    done = csv_path + f".importat_{datetime.now():%Y%m%d_%H%M%S}"
+    os.replace(csv_path, done)
+    print(f"Am importat {count} actiuni. Fisierul a fost redenumit in: {done}")
+
+
 def main():
+    parser = argparse.ArgumentParser(description=APP_NAME)
+    parser.add_argument("--import-csv", metavar="FISIER",
+                        help="importa pending_new_actions.csv in Excel si iese")
+    args = parser.parse_args()
     ensure_workbook()
+    if args.import_csv:
+        import_pending_csv(args.import_csv)
+        return
     os.makedirs(CFG["attachments_dir"], exist_ok=True)
     httpd = ThreadingHTTPServer((CFG["host"], int(CFG["port"])), Handler)
     print(f"{APP_NAME} ruleaza pe http://{CFG['host']}:{CFG['port']}/")

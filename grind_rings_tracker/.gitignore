@@ -3,3 +3,4 @@ attachments/
 *.xlsx
 *.xlsm
 __pycache__/
+backups/

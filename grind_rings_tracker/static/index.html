@@ -1746,7 +1746,7 @@ document.getElementById("submitAddActionBtn").addEventListener("click", async ()
   btn.textContent = "Salvează acțiunea";
 
   if (res.ok) {
-    resultEl.innerHTML = `<div class="modal-result-ok">Ascultătorul direct nu a răspuns, dar am salvat în coadă. Va apărea în Excel după rularea Import-PendingActions.ps1.</div>`;
+    resultEl.innerHTML = `<div class="modal-result-ok">Ascultătorul direct nu a răspuns, dar am salvat în coadă. Va apărea în Excel după importul cozii pe server (python grind_rings_server.py --import-csv pending_new_actions.csv).</div>`;
     ["naClient","naResponsabil","naActiune","naTipActiune","naSapRulment","naDescRulment","naFamilie","naComandaMontaj","naSapComponent","naDescComponent","naTipComponent","naComandaComponent","naQty","naComentarii","naPin"].forEach(id => document.getElementById(id).value = "");
   } else {
     const csvLine = rowValues.map(csvEscape).join(",");

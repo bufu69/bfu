@@ -9,5 +9,7 @@
   "pins": {
     "1234": "Admin"
   },
-  "max_upload_mb": 25
+  "max_upload_mb": 25,
+  "backup_dir": "backups",
+  "backup_keep_days": 30
 }
