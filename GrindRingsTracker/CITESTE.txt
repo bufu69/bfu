@@ -1,93 +1,102 @@
 ﻿GRIND RINGS ACTION TRACKER
 ==========================
 
-Server independent pentru urmarirea actiunilor Grind Rings, pe portul 8092.
-Datele se tin intr-o baza de date proprie (grind_rings.db, SQLite) - fara Excel,
-fara alt server, fara internet. Are nevoie doar de Python 3 (de pe python.org,
-cu bifa "Add python.exe to PATH" la instalare).
+Tracker pentru actiunile de la rectificarea inelelor. Server propriu, independent,
+pe portul 8092. Datele sunt intr-o baza de date proprie (grind_rings.db).
+Nu are nevoie de Excel, de internet sau de alt server - doar de Python 3
+(https://www.python.org/downloads/ , cu bifa "Add python.exe to PATH").
 
-Dashboard:  http://NUME-CALCULATOR:8092/
-Grafice:    http://NUME-CALCULATOR:8092/grafice
+  Tracker:  http://NUME-CALCULATOR:8092/
+  Grafice:  http://NUME-CALCULATOR:8092/grafice
+
+
+CE CONTINE O ACTIUNE
+--------------------
+Nr, Data, Masina / Linie, Reper (cod inel), Comanda, Client, Problema, Actiune,
+Responsabil, Termen, Stadiu (Deschis / In lucru / Inchis), Prioritate (Normala /
+Ridicata / Urgenta), Data inchidere, plus comentarii, fisiere atasate si istoric.
+Obligatorii: Masina, Problema, Actiune, Responsabil.
 
 
 FISIERE
 -------
-server.py                        serverul (pagina, baza de date, atasamente, mailuri)
-index.html                       dashboard-ul (tracker-ul)
-grafice.html                     pagina cu grafice (tendinta, stadiu, responsabili, clienti...)
-pagina-veche-past_due_tracker.html  pagina Past Due dupa care a fost facut acest tracker (doar referinta)
-fonts\                           fonturile paginii (ca sa mearga si fara internet)
+server.py                     serverul (pagini, baza de date, atasamente, mailuri)
+index.html                    tracker-ul: lista, filtre, adaugare, modificare, comentarii, atasamente
+grafice.html                  grafice: deschise vs inchise, stadiu, prioritate, masini, responsabili
+CITESTE.txt                   acest fisier
 
-instalare-server.bat / .ps1      INSTALARE: baza de date, primul editor, firewall,
-                                 pornire automata la pornirea calculatorului, mail zilnic (optional)
-actualizare-server.bat / .ps1    ACTUALIZARE: copiaza o versiune noua peste cea instalata,
-                                 fara sa atinga datele
-porneste-tracker.bat             porneste serverul
-reporneste-tracker.bat           reporneste serverul
-editori.bat                      cine poate adauga/modifica/sterge actiuni (nume + cod personal)
-import-excel.bat                 importa actiuni dintr-un Excel (.xlsx/.xlsm) - trage fisierul peste .bat
-mail.bat                         trimite mailurile prin serverul de mail (SMTP)
-outlook-mailuri.bat              trimite mailurile prin Outlook-ul de pe acest calculator
-trimite-outlook.ps1              folosit de outlook-mailuri.bat
-mail-exemplu.ini                 model de setari pentru mailuri -> copiaza-l in mail.ini
-setup-GrindRingsTracker.nsi      script pentru a face un installer .exe (NSIS)
+instalare-server.bat / .ps1   INSTALARE: Python, primul editor, firewall, pornire automata,
+                              mail zilnic (optional)
+actualizare-server.bat / .ps1 ACTUALIZARE la o versiune noua, fara sa atinga datele
+porneste-tracker.bat          porneste serverul
+reporneste-tracker.bat        reporneste serverul
+editori.bat                   cine poate modifica (nume + cod personal)
+import-excel.bat              importa actiuni dintr-un Excel (.xlsx / .xlsm)
+mail.bat                      trimite mailurile prin serverul de mail (SMTP)
+outlook-mailuri.bat           trimite mailurile prin Outlook
+trimite-outlook.ps1           folosit de outlook-mailuri.bat
+mail-exemplu.ini              model de setari pentru mailuri -> copiaza-l in mail.ini
+setup-GrindRingsTracker.nsi   script pentru installer .exe (NSIS)
 
-Create automat (nu le sterge):
-grind_rings.db                   BAZA DE DATE cu toate actiunile, editorii si istoricul
-attachments\                     fisierele atasate la actiuni
-backups\                         backup zilnic al bazei de date (ultimele 30 de zile)
-mail_out\                        mailurile pregatite pentru Outlook
-server.log                       jurnalul serverului cand ruleaza in fundal
+Create automat - NU le sterge:
+grind_rings.db                BAZA DE DATE (actiuni, comentarii, istoric, editori)
+atasamente\                   fisierele atasate, cate un folder pe numarul actiunii
+backups\                      copie zilnica a bazei de date (ultimele 30 de zile)
+mail_out\                     mailurile pregatite pentru Outlook
+server.log                    jurnalul serverului cand ruleaza in fundal
 
 
-INSTALARE (prima data)
-----------------------
-1. Copiaza folderul pe calculatorul care va tine serverul (ex. C:\GrindRingsTracker).
-2. Dublu-click pe instalare-server.bat (accepta cererea de Administrator).
-3. Adauga primul editor (nume + cod), cand te intreaba.
-4. Se deschide dashboard-ul. De acum serverul porneste singur odata cu calculatorul.
+INSTALARE
+---------
+1. Copiaza folderul pe calculatorul-server (ex. C:\GrindRingsTracker).
+2. Dublu-click pe instalare-server.bat si accepta cererea de Administrator.
+3. Adauga primul editor (nume + cod) cand te intreaba.
+4. Gata - serverul porneste singur la fiecare pornire a calculatorului.
+De proba, fara instalare: porneste-tracker.bat (merge cat timp fereastra e deschisa).
 
-Fara instalare (doar de proba): porneste-tracker.bat - merge cat timp fereastra e deschisa.
 
-
-ACTUALIZARE (versiune noua)
----------------------------
-Dezarhiveaza versiunea noua intr-un folder separat si ruleaza DE ACOLO actualizare-server.bat.
-Se copiaza doar fisierele programului; baza de date, atasamentele, mail.ini si backup-urile raman.
-Versiunea veche a programului se salveaza in backups\program_<data>.
+FOLOSIRE
+--------
+- Oricine din retea poate vedea tracker-ul. Pentru modificari, apasa "Autentificare"
+  si introdu codul personal; ramai autentificat pana inchizi browserul.
+- Click pe o actiune: detalii, modificare, comentarii, fisiere atasate, istoric.
+- Casutele de sus (Deschise, In lucru, Intarziate...) sunt si filtre: click pe ele.
+- Export: descarca toate actiunile intr-un CSV care se deschide in Excel.
 
 
 EDITORI
 -------
-editori.bat -> 1 = adauga editor / schimba codul, 2 = sterge editor.
-Numele editorului apare in comentarii si in istoric. Codurile se pastreaza criptat (hash) in baza de date.
-Fara niciun editor, nimeni nu poate modifica actiunile.
+editori.bat -> 1 = adauga / schimba codul, 2 = sterge.
+Codurile se pastreaza criptat. Numele editorului apare la comentarii si in istoric.
 
 
 IMPORT DIN EXCEL
 ----------------
-Trage fisierul Excel peste import-excel.bat. Coloanele se recunosc dupa nume, la fel ca in dashboard
-(No, Data adaugare, SAP id Rulment, Descriere Rulment, Familie Rulment, Comanda Montaj, Client,
-SAP id Component, Descriere Component, Tip component, Comanda Component, Qty, Actiune, Tip Actiune,
-Responsabil, Data Planificata, Data Finalizare, Stadiu, Urgent Client, Comentarii).
-Actiunile cu un numar (No) care exista deja sunt sarite, deci importul se poate repeta fara dubluri.
-Daca Excelul are o foaie "Lists", valorile ei apar in listele din formular.
+Trage fisierul Excel peste import-excel.bat. Primul rand al foii trebuie sa contina
+denumirile coloanelor; sunt recunoscute (cu sau fara diacritice):
+  Nr, Data, Masina / Linie, Reper, Comanda, Client, Problema, Actiune, Responsabil,
+  Termen, Stadiu, Prioritate, Data inchidere, Comentarii
+Randurile cu un Nr care exista deja sunt sarite, deci importul se poate repeta.
 
 
 MAILURI
 -------
 1. Copiaza mail-exemplu.ini in mail.ini si completeaza adresele responsabililor.
-2. Fiecare responsabil primeste lista actiunilor lui intarziate, cu termen in urmatoarele zile
-   sau urgente client; optional, un rezumat cu toate merge la "rezumat_catre".
-3. Trimitere: outlook-mailuri.bat (prin Outlook) sau mail.bat (prin SMTP).
-   outlook-mailuri.bat /afiseaza  = doar deschide mailurile in Outlook, ca sa le verifici.
-Mailul zilnic automat se poate programa din instalare-server.bat.
+2. Fiecare responsabil primeste actiunile lui intarziate, cu termen apropiat sau urgente;
+   "rezumat_catre" primeste lista completa.
+3. outlook-mailuri.bat (prin Outlook) sau mail.bat (prin SMTP).
+   outlook-mailuri.bat /afiseaza = doar deschide mailurile, ca sa le verifici.
 
 
-DATE SI SIGURANTA
+SIGURANTA DATELOR
 -----------------
-- Istoric: fiecare adaugare/editare/stergere e salvata cu cine, cand si ce s-a schimbat:
-  http://NUME-CALCULATOR:8092/api/history  (sau ?no=12 pentru o actiune)
-- Export: http://NUME-CALCULATOR:8092/api/export.csv (se deschide in Excel)
-- Backup zilnic automat in backups\. Pentru restaurare: opreste serverul, copiaza backup-ul
-  peste grind_rings.db, porneste serverul.
+- Fiecare adaugare, modificare, comentariu, atasament si stergere apare in istoric
+  (cine, cand, ce s-a schimbat).
+- Backup zilnic in backups\. Restaurare: opreste serverul (reporneste-tracker.bat il
+  porneste la loc), copiaza backup-ul peste grind_rings.db, porneste serverul.
+
+
+ACTUALIZARE
+-----------
+Dezarhiveaza versiunea noua intr-un folder separat si ruleaza DE ACOLO actualizare-server.bat.
+Se inlocuiesc doar fisierele programului; versiunea veche se pastreaza in backups\program_<data>.

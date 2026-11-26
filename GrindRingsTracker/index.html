@@ -3,1836 +3,645 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <title>Grind Rings Action Tracker</title>
-<link href="fonts/fonts.css" rel="stylesheet">
 <style>
-  :root {
-    --bg: #0b0e14; --surface: #171d27; --surface-2: #1f2632; --surface-3: #262f3d; --border: #2a3241;
-    --text: #edf0f5; --muted: #8d97ac;
-    --amber: #e8a33d; --coral: #e1596b; --teal: #43b8a6; --blue: #5b8def; --violet: #9b7ee8;
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --panel-2: #f8f9fb; --line: #e2e5ea; --line-2: #d3d8e0;
+  --ink: #161a22; --ink-2: #4a5263; --ink-3: #737b8c;
+  --accent: #2f5bd3; --accent-ink: #ffffff; --accent-soft: #e8eefc;
+  --red: #c4302b; --red-soft: #fdecea; --orange: #b85c00; --orange-soft: #fff1e0;
+  --amber: #9a6a00; --amber-soft: #fff6d6; --green: #1d7f46; --green-soft: #e5f5ec;
+  --slate: #3f5a80; --slate-soft: #e8eef6;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="luminos"]) {
+    --bg: #0f1216; --panel: #171b21; --panel-2: #1c2129; --line: #2a303a; --line-2: #353c48;
+    --ink: #e9ecf1; --ink-2: #b3bac6; --ink-3: #8a93a3;
+    --accent: #7b9cff; --accent-ink: #0f1216; --accent-soft: #1f2a44;
+    --red: #ff7b72; --red-soft: #3a1d1c; --orange: #ffa657; --orange-soft: #3a2614;
+    --amber: #e3b341; --amber-soft: #33290f; --green: #56d364; --green-soft: #15301d;
+    --slate: #9db4d6; --slate-soft: #1f2836;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+    color-scheme: dark;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background:
-      radial-gradient(1100px 500px at 15% -10%, rgba(91,141,239,0.10), transparent),
-      radial-gradient(900px 500px at 100% 0%, rgba(67,184,166,0.08), transparent),
-      var(--bg);
-    color: var(--text); font-family: 'Inter', sans-serif; padding: 0 12px 60px;
-  }
-  h1, h2, h3, .num { font-family: 'Space Grotesk', sans-serif; }
-  .mono { font-family: 'IBM Plex Mono', monospace; }
-  .dash { margin: 0; }
+}
+:root[data-tema="intunecat"] {
+  --bg: #0f1216; --panel: #171b21; --panel-2: #1c2129; --line: #2a303a; --line-2: #353c48;
+  --ink: #e9ecf1; --ink-2: #b3bac6; --ink-3: #8a93a3;
+  --accent: #7b9cff; --accent-ink: #0f1216; --accent-soft: #1f2a44;
+  --red: #ff7b72; --red-soft: #3a1d1c; --orange: #ffa657; --orange-soft: #3a2614;
+  --amber: #e3b341; --amber-soft: #33290f; --green: #56d364; --green-soft: #15301d;
+  --slate: #9db4d6; --slate-soft: #1f2836;
+  --shadow: 0 1px 2px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font); }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
 
-  /* ---- sticky top ---- */
-  .sticky-top {
-    position: sticky; top: 0; z-index: 50; margin: 0 -12px; padding: 12px 12px 10px;
-    background:
-      radial-gradient(1100px 500px at 15% -10%, rgba(91,141,239,0.12), transparent),
-      radial-gradient(900px 500px at 100% 0%, rgba(67,184,166,0.09), transparent),
-      var(--bg);
-    border-bottom: 1px solid var(--border);
-    box-shadow: 0 12px 24px -12px rgba(0,0,0,0.5);
-  }
+/* ---------- bara de sus ---------- */
+.top { position: sticky; top: 0; z-index: 20; background: var(--panel); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1500px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.logo { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+.logo svg { flex-shrink: 0; }
+.logo h1 { font-size: 17px; margin: 0; letter-spacing: -.01em; white-space: nowrap; }
+.logo small { display: block; color: var(--ink-3); font-size: 12px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); cursor: pointer; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.btn:hover { background: var(--panel-2); }
+.btn.primar { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.primar:hover { filter: brightness(1.07); }
+.btn.pericol { color: var(--red); border-color: var(--red); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.mic { height: 28px; padding: 0 9px; font-size: 13px; }
+.editor-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 6px 0 12px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-weight: 600; }
+.editor-chip button { border: 0; background: transparent; cursor: pointer; color: inherit; padding: 4px 6px; border-radius: 999px; }
 
-  .header-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 12px; margin-bottom: 8px; }
-  @media (max-width: 760px) { .header-row { grid-template-columns: 1fr; justify-items: center; } }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand-mark {
-    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-    background: linear-gradient(135deg, var(--coral), var(--violet));
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11px; color: #0b0e14;
-  }
-  .header-row h1 { font-size: 16px; font-weight: 700; margin: 0; letter-spacing: -0.01em; line-height: 1.15; }
-  .status-strip { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--muted); }
-  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 0 rgba(67,184,166,0.6); animation: pulse 2s infinite; flex-shrink: 0; }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(67,184,166,0.5); } 70% { box-shadow: 0 0 0 6px rgba(67,184,166,0); } 100% { box-shadow: 0 0 0 0 rgba(67,184,166,0); }
-  }
-  .header-right { display: flex; align-items: center; gap: 10px; justify-self: end; }
+main { max-width: 1500px; margin: 0 auto; padding: 16px; }
 
-  /* ---- ticker live (indicatorii trackerului) ---- */
-  .ticker-bar { justify-self: center; }
-  .ticker-track { display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 4px 0; }
-  .ticker-item {
-    display: flex; align-items: center; gap: 6px;
-    padding: 0 16px; white-space: nowrap;
-    font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);
-    border-right: 1px solid var(--border);
-  }
-  .ticker-item:last-child { border-right: none; padding-right: 0; }
-  .ticker-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 6px var(--blue); flex-shrink: 0; }
-  .ticker-item b { color: var(--text); font-weight: 600; }
-  .ticker-item .val-good { color: var(--teal); font-weight: 700; }
-  .ticker-item .val-warn { color: var(--amber); font-weight: 700; }
-  .ticker-item .val-coral { color: var(--coral); font-weight: 700; }
-  @media (max-width: 760px) { .ticker-track { justify-content: center; } }
-  .clock { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; text-align: right; display: flex; align-items: baseline; gap: 6px; }
-  .clock .date { font-family: 'Inter', sans-serif; font-size: 10px; color: var(--muted); font-weight: 400; text-transform: capitalize; }
-  .header-btns { display: flex; gap: 6px; }
-  .refresh-btn {
-    background: var(--surface); border: 1px solid var(--border); color: var(--amber);
-    border-radius: 8px; padding: 6px 10px; font-size: 11px; cursor: pointer;
-    display: flex; align-items: center; gap: 5px; font-family: 'Inter', sans-serif; white-space: nowrap;
-  }
-  .refresh-btn:hover { color: var(--amber); border-color: var(--blue); }
-  .refresh-btn.spinning svg { animation: spin .6s linear; }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* ---------- indicatori ---------- */
+.kpi { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+@media (max-width: 900px) { .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi button { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; box-shadow: var(--shadow); cursor: pointer; }
+.kpi button:hover { border-color: var(--line-2); }
+.kpi button.activ { outline: 2px solid var(--accent); outline-offset: -1px; }
+.kpi .eticheta { font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+.kpi .val { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.punct { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 
-  .error-banner { background: rgba(225,89,107,0.12); border: 1px solid var(--coral); color: var(--coral); padding: 6px 10px; border-radius: 8px; font-size: 12px; margin: 8px 0 0; display: none; }
+/* ---------- filtre ---------- */
+.filtre { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.cauta { position: relative; flex: 1 1 240px; max-width: 380px; }
+.cauta input { width: 100%; height: 34px; padding: 0 10px 0 32px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--panel); }
+.cauta svg { position: absolute; left: 10px; top: 9px; color: var(--ink-3); }
+.filtre select { height: 34px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--panel); padding: 0 8px; max-width: 180px; }
+.filtre .spatiu { flex: 1; }
+.contor { color: var(--ink-3); font-size: 13px; }
 
-  .alert-banner {
-    display: none; align-items: center; justify-content: center; text-align: center; gap: 8px;
-    background: linear-gradient(90deg, rgba(225,89,107,0.22), rgba(225,89,107,0.10), rgba(225,89,107,0.22));
-    border: 1px solid rgba(225,89,107,0.55); border-radius: 10px; padding: 8px 14px; margin: 8px 0 0; font-size: 12px;
-    animation: alertPulse 1.8s infinite;
-  }
-  .alert-banner strong { color: var(--coral); }
-  .alert-icon { color: var(--coral); flex-shrink: 0; width: 15px; height: 15px; animation: alertIconPulse 1.8s infinite; }
-  @keyframes alertPulse {
-    0% { box-shadow: 0 0 0 0 rgba(225,89,107,0.45); border-color: rgba(225,89,107,0.55); }
-    50% { box-shadow: 0 0 14px 2px rgba(225,89,107,0.35); border-color: rgba(225,89,107,0.9); }
-    100% { box-shadow: 0 0 0 0 rgba(225,89,107,0.45); border-color: rgba(225,89,107,0.55); }
-  }
-  @keyframes alertIconPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: .55; transform: scale(1.2); }
-  }
+/* ---------- tabel ---------- */
+.tabel-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+thead th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-3); background: var(--panel-2); border-bottom: 1px solid var(--line); padding: 8px 10px; white-space: nowrap; cursor: pointer; user-select: none; }
+thead th .sageata { opacity: .35; margin-left: 3px; }
+thead th.sortat .sageata { opacity: 1; color: var(--accent); }
+tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--panel-2); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr.selectat { background: var(--accent-soft); }
+.nr { font-family: var(--mono); color: var(--ink-3); white-space: nowrap; }
+.problema { font-weight: 600; }
+.actiune-txt { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.secundar { color: var(--ink-3); font-size: 12px; }
+.text-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.b-deschis { background: var(--slate-soft); color: var(--slate); }
+.b-lucru { background: var(--amber-soft); color: var(--amber); }
+.b-inchis { background: var(--green-soft); color: var(--green); }
+.b-urgenta { background: var(--red-soft); color: var(--red); }
+.b-ridicata { background: var(--orange-soft); color: var(--orange); }
+.b-normala { color: var(--ink-3); padding-left: 0; }
+.termen { white-space: nowrap; }
+.termen .zile { display: block; font-size: 12px; }
+.intarziat { color: var(--red); font-weight: 600; }
+.aproape { color: var(--amber); font-weight: 600; }
+.icoane { white-space: nowrap; color: var(--ink-3); font-size: 12px; }
+.icoane span { margin-right: 8px; display: inline-flex; align-items: center; gap: 3px; }
+.gol { text-align: center; color: var(--ink-3); padding: 40px 16px; }
+.eroare-banda { display: none; background: var(--red-soft); color: var(--red); border: 1px solid var(--red); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
 
-  .stat-strip { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 16px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--border); font-size: 12.5px; }
-  .stat-strip .item { display: flex; align-items: baseline; gap: 5px; color: var(--muted); }
-  .stat-strip .item b { font-family: 'Space Grotesk', sans-serif; font-size: 16px; color: var(--text); }
-  .stat-strip .item.accent-coral b { color: var(--coral); }
+/* telefon: randuri ca si carduri */
+@media (max-width: 760px) {
+  thead { display: none; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  tbody tr { padding: 10px 12px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; }
+  tbody td { border: 0; padding: 0; }
+  td.c-nr { grid-column: 1; }
+  td.c-pr { grid-column: 3; text-align: right; }
+  td.c-masina { grid-column: 1 / 3; }
+  td.c-stadiu { grid-column: 3; text-align: right; }
+  td.c-txt { grid-column: 1 / -1; }
+  td.c-resp { grid-column: 1 / 3; }
+  td.c-termen { grid-column: 3; text-align: right; }
+  td.c-ico { grid-column: 1 / -1; }
+  td.c-ico:empty { display: none; }
+  td.c-reper { display: none; }
+}
 
-  /* ---- analytics ---- */
-  .analytics-grid { display: grid; grid-template-columns: 1.05fr 0.75fr 0.95fr 1.3fr; gap: 12px; margin: 14px 0 2px; align-items: start; }
-  @media (max-width: 1500px) { .analytics-grid { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 860px) { .analytics-grid { grid-template-columns: 1fr; } }
+/* ---------- panou lateral ---------- */
+.voal { position: fixed; inset: 0; background: rgba(10,14,20,.35); z-index: 30; display: none; }
+.voal.deschis { display: block; }
+.panou { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--panel); border-left: 1px solid var(--line); z-index: 31; transform: translateX(100%); transition: transform .18s ease; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.12); }
+.panou.deschis { transform: none; }
+.panou header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.panou header h2 { margin: 0; font-size: 16px; flex: 1; min-width: 0; }
+.panou .continut { overflow-y: auto; padding: 16px; flex: 1; }
+.panou footer { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+.inchide { border: 0; background: transparent; cursor: pointer; padding: 6px; border-radius: 6px; color: var(--ink-2); }
+.inchide:hover { background: var(--panel-2); }
+.formular { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.formular .lat { grid-column: 1 / -1; }
+.camp label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+.camp label .obl { color: var(--red); }
+.camp input, .camp select, .camp textarea { width: 100%; border: 1px solid var(--line-2); border-radius: 8px; background: var(--panel); padding: 7px 9px; }
+.camp textarea { min-height: 64px; resize: vertical; }
+.camp input:disabled, .camp select:disabled, .camp textarea:disabled { background: var(--panel-2); color: var(--ink); border-color: var(--line); opacity: 1; }
+.camp input:focus, .camp select:focus, .camp textarea:focus, .cauta input:focus, .filtre select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+@media (max-width: 520px) { .formular { grid-template-columns: 1fr; } }
+.sectiune { margin-top: 20px; }
+.sectiune h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.sectiune h3 .nr-mic { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; font-size: 11px; color: var(--ink-2); }
+.coment { border-left: 3px solid var(--line-2); padding: 4px 0 4px 10px; margin-bottom: 10px; }
+.coment .cine { font-size: 12px; color: var(--ink-3); }
+.coment .cine b { color: var(--ink-2); }
+.coment .txt { white-space: pre-wrap; word-break: break-word; }
+.adauga-com { display: flex; gap: 8px; align-items: flex-end; }
+.adauga-com textarea { flex: 1; min-height: 38px; border: 1px solid var(--line-2); border-radius: 8px; padding: 7px 9px; background: var(--panel); resize: vertical; }
+.atas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.atas a { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid var(--line-2); border-radius: 999px; text-decoration: none; color: var(--ink); font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atas a:hover { border-color: var(--accent); }
+.istoric li { font-size: 12.5px; color: var(--ink-2); margin-bottom: 6px; }
+.istoric ul { padding-left: 18px; margin: 0; }
+.istoric .cand { color: var(--ink-3); }
+.mesaj { font-size: 13px; padding: 8px 10px; border-radius: 8px; margin-top: 10px; display: none; }
+.mesaj.ok { display: block; background: var(--green-soft); color: var(--green); }
+.mesaj.err { display: block; background: var(--red-soft); color: var(--red); }
+.nota-blocat { background: var(--panel-2); border: 1px dashed var(--line-2); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--ink-2); margin-bottom: 12px; }
+.meta { font-size: 12px; color: var(--ink-3); margin-bottom: 12px; }
 
-  .analytics-section { padding-top: 0; }
-  .analytics-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
-  @media (max-width: 900px) { .analytics-grid-2 { grid-template-columns: 1fr; } }
-  .toggle-analytics-btn {
-    background: var(--surface); border: 1px solid var(--border); color: var(--amber);
-    border-radius: 8px; padding: 6px 10px; font-size: 11px; cursor: pointer;
-    display: flex; align-items: center; gap: 5px; font-family: 'Inter', sans-serif; white-space: nowrap;
-  }
-  .toggle-analytics-btn:hover { color: var(--amber); border-color: var(--blue); }
-  .toggle-analytics-btn svg { transition: transform .2s ease; }
-  .toggle-analytics-btn.expanded svg { transform: rotate(180deg); }
-
-  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
-  .panel h2 { font-size: 12px; font-weight: 600; margin: 0 0 12px; color: #22c55e; text-transform: uppercase; letter-spacing: .05em; }
-  .panel h3 { font-size: 11px; font-weight: 600; margin: 0 0 12px; color: #22c55e; text-transform: uppercase; letter-spacing: .05em; }
-
-  .combo-panel { display: flex; align-items: stretch; gap: 0; }
-  .combo-half { flex: 1; padding: 0 14px; min-width: 150px; }
-  .combo-half:first-child { padding-left: 0; }
-  .combo-half:last-child { padding-right: 0; }
-  .combo-divider { width: 1px; background: var(--border); margin: 2px 0; flex-shrink: 0; }
-  .combo-divider-h { height: 1px; background: var(--border); margin: 14px 0; }
-  .combo-half h3 { font-size: 11px; font-weight: 600; margin: 0 0 12px; color: #22c55e; text-transform: uppercase; letter-spacing: .05em; }
-  @media (max-width: 1500px) {
-    .combo-panel { flex-direction: column; }
-    .combo-half { padding: 0; min-width: 0; }
-    .combo-divider { width: 100%; height: 1px; margin: 14px 0; }
-  }
-
-  .gauge-wrap { display: flex; align-items: center; gap: 16px; }
-  .gauge-num { font-size: 30px; font-weight: 700; } .gauge-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-
-  .donut-wrap { display: flex; align-items: center; gap: 16px; }
-  .donut { width: 80px; height: 80px; border-radius: 50%; position: relative; flex-shrink: 0; }
-  .donut::after { content: ''; position: absolute; inset: 14px; background: var(--surface); border-radius: 50%; }
-  .donut-center { position: absolute; inset: 14px; display: flex; align-items: center; justify-content: center; z-index: 2; }
-  .donut-center .n { font-size: 18px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
-  .legend { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
-  .legend-item { display: flex; align-items: center; gap: 7px; color: var(--muted); }
-  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .legend-item b { color: var(--text); font-family: 'IBM Plex Mono', monospace; margin-left: auto; padding-left: 10px; }
-
-  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 12px; }
-  .bar-row:last-child { margin-bottom: 0; }
-  .bar-row .bar-label { width: 108px; flex-shrink: 0; color: var(--muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .bar-track { flex: 1; background: var(--surface-2); border-radius: 5px; height: 15px; overflow: hidden; display: flex; }
-  .bar-fill { height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; color: #0b0e14; font-weight: 600; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; white-space: nowrap; }
-  .bar-row-sm { margin-bottom: 4px; font-size: 10.5px; }
-  .resp-row { cursor: pointer; border-radius: 6px; transition: opacity .15s, background .15s; }
-  .resp-row:hover { background: rgba(255,255,255,0.05); }
-  .resp-row:hover .bar-label { color: var(--text); }
-  .resp-row.resp-active { background: rgba(232,163,61,0.12); outline: 1px solid var(--amber); }
-  .resp-row.resp-active .bar-label { color: var(--amber); font-weight: 700; }
-  .resp-row.resp-dim { opacity: .4; }
-  .resp-chip { display: none; align-items: center; gap: 6px; background: rgba(232,163,61,0.15); color: var(--amber); border: 1px solid var(--amber); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; margin-left: 10px; }
-  .resp-chip:hover { background: var(--amber); color: #0b0e14; }
-  .resp-pill-count { display: none; }
-
-  /* ---- mod focus: filtru pe responsabil activ -> header compact ---- */
-  body.resp-focus .stat-strip,
-  body.resp-focus .analytics-grid > .panel:not(#leaderboardPanel) { display: none; }
-  body.resp-focus .analytics-grid { display: block; margin: 8px 0 8px; }
-  body.resp-focus #leaderboardPanel { display: flex !important; align-items: center; gap: 10px; padding: 6px 10px; margin-bottom: 0; }
-  body.resp-focus #leaderboardPanel h2 { margin: 0; font-size: 10.5px; white-space: nowrap; flex-shrink: 0; }
-  body.resp-focus #leaderboardArea { display: flex; flex-wrap: wrap; gap: 5px; max-height: 58px; flex: 1; min-width: 0; }
-  body.resp-focus .resp-row { display: inline-flex; margin: 0; padding: 3px 4px 3px 10px; gap: 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 11.5px; }
-  body.resp-focus .resp-row .bar-label { width: auto; text-align: left; overflow: visible; }
-  body.resp-focus .resp-row .bar-track,
-  body.resp-focus .resp-row .bar-count { display: none; }
-  body.resp-focus .resp-row .resp-pill-count { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; color: #0b0e14; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 10.5px; text-align: center; line-height: 16px; }
-  body.resp-focus .resp-row.resp-active { background: rgba(232,163,61,0.15); outline: none; border-color: var(--amber); }
-  body.resp-focus .resp-row.resp-dim { opacity: .55; }
-  body.resp-focus .resp-row.resp-dim:hover { opacity: 1; }
-  @media (max-width: 760px) { body.resp-focus #leaderboardPanel { flex-direction: column; align-items: stretch; } }
-
-  .scroll-area { max-height: 190px; overflow-y: auto; padding-right: 4px; }
-  .scroll-area::-webkit-scrollbar { width: 6px; }
-  .scroll-area::-webkit-scrollbar-track { background: transparent; }
-  .scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  .scroll-area::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
-  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 620px; max-height: 90vh; display: flex; flex-direction: column; }
-  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-  .modal-header h2 { margin: 0; font-size: 15px; color: var(--text); }
-  .modal-close { background: none; border: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px; }
-  .modal-close:hover { color: var(--text); }
-  .modal-body { padding: 16px 18px; overflow-y: auto; }
-  .modal-note { background: rgba(232,163,61,.12); border: 1px solid var(--amber); color: var(--amber); font-size: 12px; padding: 8px 10px; border-radius: 6px; margin-bottom: 12px; }
-  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
-  .modal-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
-  .modal-grid label.wide { grid-column: 1 / -1; }
-  .modal-grid input, .modal-grid select {
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px;
-    font-size: 13px; color: var(--text); font-family: 'Inter', sans-serif;
-  }
-  .modal-grid input:focus, .modal-grid select:focus { outline: none; border-color: var(--blue); }
-  .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--border); }
-  .modal-btn-secondary, .modal-btn-primary { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); }
-  .modal-btn-secondary { background: var(--surface-2); color: var(--muted); }
-  .modal-btn-secondary:hover { color: var(--text); }
-  .modal-btn-primary { background: var(--teal); color: #0b0e14; border-color: var(--teal); }
-  .modal-btn-primary:hover { opacity: .9; }
-  .modal-result-ok { background: rgba(67,184,166,.12); border: 1px solid var(--teal); color: var(--teal); font-size: 12px; padding: 8px 10px; border-radius: 6px; margin-top: 12px; }
-  .modal-result-error { background: rgba(225,89,107,.12); border: 1px solid var(--coral); color: var(--coral); font-size: 12px; padding: 8px 10px; border-radius: 6px; margin-top: 12px; }
-  .modal-fallback-text { width: 100%; margin-top: 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 8px; }
-  @media (max-width: 600px) { .modal-grid { grid-template-columns: 1fr; } .modal-grid label.wide { grid-column: 1; } }
-  .bar-row-sm .bar-label { width: 88px; }
-  .bar-row-sm .bar-track { height: 10px; }
-  .bar-row-sm .bar-fill { font-size: 9px; padding-right: 4px; }
-  .sub-block-heading { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 12px 0 7px; border-top: 1px solid var(--border); padding-top: 10px; }
-  .sub-block-heading:first-child { margin-top: 0; border-top: none; padding-top: 0; }
-  .stacked-track { flex: 1; background: var(--surface-2); border-radius: 5px; height: 15px; overflow: hidden; display: flex; }
-  .stacked-seg { height: 100%; }
-  .bar-count { width: 26px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); flex-shrink: 0; }
-
-  .mini-stat-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
-  .mini-stat-row:last-child { border-bottom: none; padding-bottom: 0; }
-  .mini-stat-row:first-child { padding-top: 0; }
-  .mini-label { font-size: 12px; color: var(--muted); }
-  .mini-label .mini-sub { display: block; font-size: 11px; color: var(--text); opacity: .85; margin-top: 2px; max-width: 260px; white-space: normal; overflow-wrap: break-word; line-height: 1.35; }
-  .mini-sub-link { cursor: pointer; color: var(--blue) !important; opacity: 1 !important; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
-  .mini-sub-link:hover { color: var(--amber) !important; }
-  @keyframes cardHighlightFlash {
-    0%, 100% { box-shadow: none; border-left-color: var(--priority-color); }
-    30% { box-shadow: 0 0 0 2px var(--amber); border-left-color: var(--amber); }
-  }
-  .issue-card.highlight-flash { animation: cardHighlightFlash 1.4s ease-in-out 2; }
-  .mini-value { font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; flex-shrink: 0; }
-
-  .evo-legend { display: flex; gap: 16px; font-size: 11.5px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
-  .evo-legend span { display: inline-flex; align-items: center; gap: 5px; }
-  .evo-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .evo-legend .sq { width: 8px; height: 8px; border-radius: 2px; }
-  .evo-empty { font-size: 12px; color: var(--muted); padding: 18px 0; text-align: center; }
-  .evo-trend { font-size: 11.5px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
-  .evo-trend-arrow { font-size: 13px; font-weight: 700; }
-  .evo-path { stroke-dasharray: 900; stroke-dashoffset: 900; animation: evoDraw 1.4s ease-out forwards; }
-  @keyframes evoDraw { to { stroke-dashoffset: 0; } }
-
-  /* ---- controls ---- */
-  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-  .search-box { flex: 1; min-width: 160px; display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; }
-  .search-box input { background: none; border: none; outline: none; color: var(--text); font-size: 13px; width: 100%; font-family: 'Inter', sans-serif; }
-  .search-box svg { color: var(--muted); flex-shrink: 0; }
-  #clearSearchBtn {
-    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-    width: 20px; height: 20px; border: none; border-radius: 4px; background: var(--surface-2);
-    color: var(--muted); cursor: pointer; padding: 0;
-  }
-  #clearSearchBtn:hover { background: var(--coral); color: #0b0e14; }
-  select.filter-select, .sort-btn {
-    background: var(--surface); border: 1px solid var(--border); color: var(--text);
-    border-radius: 9px; padding: 8px 10px; font-size: 13px; font-family: 'Inter', sans-serif; cursor: pointer;
-  }
-  .sort-btn { display: flex; align-items: center; gap: 5px; color: var(--amber); }
-
-  .list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .list-header h2 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text); }
-  .list-header span { font-size: 12px; color: var(--muted); }
-
-  .table-wrap { overflow-x: visible; }
-
-  .issue-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--priority-color); border-radius: 10px; padding: 13px 16px; margin-bottom: 8px; }
-  .issue-title-row { display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-  .print-btn {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--amber);
-    background: var(--surface-2); color: var(--amber); cursor: pointer; flex-shrink: 0;
-    transition: background .15s, color .15s;
-  }
-  .print-btn:hover { background: var(--amber); color: #0b0e14; border-color: var(--amber); }
-  .mail-btn { border-color: var(--blue); color: var(--blue); text-decoration: none; }
-  .mail-btn:hover { background: var(--blue); color: #0b0e14; border-color: var(--blue); }
-  .attach-btn { border-color: var(--violet); color: var(--violet); }
-  .attach-btn:hover { background: var(--violet); color: #0b0e14; border-color: var(--violet); }
-  .edit-btn { border-color: var(--amber); color: var(--amber); }
-  .edit-btn:hover { background: var(--amber); color: #0b0e14; border-color: var(--amber); }
-  .delete-btn { border-color: var(--coral); color: var(--coral); }
-  .delete-btn:hover { background: var(--coral); color: #0b0e14; border-color: var(--coral); }
-  .attach-status { font-size: 10.5px; margin-top: 4px; min-height: 0; }
-  .attach-status.ok { color: var(--teal); }
-  .attach-status.error { color: var(--coral); }
-  .attach-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-  .attach-chip {
-    display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--violet);
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px;
-    text-decoration: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .attach-chip:hover { border-color: var(--violet); }
-  @media print {
-    body.printing-single .sticky-top, body.printing-single .controls, body.printing-single .analytics-grid,
-    body.printing-single .analytics-section, body.printing-single .list-header, body.printing-single .footer-note,
-    body.printing-single #resolvedSection, body.printing-single .print-btn { display: none !important; }
-    body.printing-single .issue-card { display: none !important; }
-    body.printing-single .issue-card.print-target { display: block !important; opacity: 1 !important; break-inside: avoid; }
-    body.printing-single { background: #fff !important; }
-    body.printing-single .issue-card.print-target { background: #fff !important; border-color: #ccc !important; color: #000 !important; }
-    body.printing-single .issue-card.print-target * { color: #000 !important; }
-
-    body.printing-all .sticky-top, body.printing-all .analytics-section, body.printing-all .list-header,
-    body.printing-all .footer-note, body.printing-all #resolvedSection, body.printing-all .print-btn { display: none !important; }
-    body.printing-all { background: #fff !important; }
-    body.printing-all .issue-card { display: block !important; opacity: 1 !important; break-inside: avoid; margin-bottom: 12px; background: #fff !important; border-color: #ccc !important; color: #000 !important; }
-    body.printing-all .issue-card * { color: #000 !important; }
-    body.printing-all .table-wrap { margin-top: 0 !important; }
-  }
-  .issue-title { font-size: 14.5px; font-weight: 700; margin: 0; }
-  .issue-title-row .no-badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); flex-shrink: 0; }
-
-  .kv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-  .kv { display: inline-flex; align-items: baseline; gap: 5px; font-size: 12.5px; white-space: nowrap; }
-  .kv .k { color: #22c55e; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
-  .kv .v { color: var(--text); font-weight: 600; }
-
-  .status-row { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-top: 8px; }
-  .field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); grid-auto-rows: auto; gap: 6px; margin-top: 4px; align-items: stretch; }
-  .field-cell { background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-  .field-cell.wide { grid-column: span 2; }
-  .field-cell .f-label { font-size: 9px; color: #22c55e; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; text-align: center; }
-  .field-cell .f-value { font-size: 12px; color: var(--text); font-weight: 600; overflow-wrap: break-word; word-break: break-word; width: 100%; text-align: center; line-height: 1.3; }
-  @media (max-width: 700px) {
-    .status-row { justify-content: flex-start; }
-  }
-
-  .comment-details { margin-top: 10px; }
-  .comment-details summary {
-    display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
-    font-size: 12px; color: var(--amber, #e8a33d); font-weight: 600; user-select: none;
-  }
-  .comment-details summary::-webkit-details-marker { display: none; }
-  .comment-details summary svg { flex-shrink: 0; color: var(--amber, #e8a33d); }
-  .comment-details summary:hover { opacity: .8; }
-  .comment-highlight {
-    background: linear-gradient(0deg, rgba(232,163,61,.09), rgba(232,163,61,.09)), var(--surface);
-    border: 1px solid rgba(232,163,61,.35);
-    border-left: 3px solid var(--amber, #e8a33d);
-    border-radius: 8px;
-    padding: 8px 10px;
-    margin-top: 6px;
-    font-size: 12.5px;
-    color: var(--text);
-    font-style: italic;
-  }
-  .comment-line { padding: 3px 0; }
-  .comment-line + .comment-line { border-top: 1px dashed rgba(232,163,61,.3); }
-
-  .issue-note { font-size: 12px; color: var(--muted); margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--border); }
-  .issue-note.comment { font-style: italic; }
-  .cell-muted { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cell-center { text-align: center; }
-
-  .status-pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 100px; white-space: nowrap; }
-
-  .urgent-pill {
-    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
-    padding: 3px 9px; border-radius: 100px; background: rgba(225,89,107,0.18); color: var(--coral);
-    animation: urgentPulse 1.6s infinite; white-space: nowrap;
-  }
-  .urgent-pill .p-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; animation: urgentDot 1.6s infinite; }
-  @keyframes urgentPulse { 0% { box-shadow: 0 0 0 0 rgba(225,89,107,0.45); } 70% { box-shadow: 0 0 0 7px rgba(225,89,107,0); } 100% { box-shadow: 0 0 0 0 rgba(225,89,107,0); } }
-  @keyframes urgentDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(1.3); } }
-
-  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 100px; font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
-  .chip-coral { background: rgba(225,89,107,0.15); color: var(--coral); }
-  .chip-amber { background: rgba(232,163,61,0.15); color: var(--amber); }
-  .chip-teal { background: rgba(67,184,166,0.15); color: var(--teal); }
-  .chip-muted { background: var(--surface-2); color: var(--muted); }
-
-  .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 13px; }
-  .footer-note { text-align: center; font-size: 11px; color: var(--muted); margin-top: 18px; opacity: .7; }
-
-  /* ---- MOD LUMINOS (proiector) ---- */
-  body.light-mode {
-    --bg: #eef1f6; --surface: #ffffff; --surface-2: #e9edf3; --surface-3: #dde3ec; --border: #b9c3d2;
-    --text: #0b1220; --muted: #3a4558;
-    --amber: #b35f00; --coral: #c41d33; --teal: #0a7d6b; --blue: #1f4fc4; --violet: #5b35b8;
-    --heading-green: #12813a;
-    background: var(--bg);
-  }
-  body.light-mode .sticky-top { background: var(--bg); box-shadow: 0 10px 20px -14px rgba(0,0,0,0.35); }
-  body.light-mode .panel,
-  body.light-mode .issue-card { box-shadow: 0 1px 3px rgba(15,23,42,0.08); }
-  body.light-mode .panel h2,
-  body.light-mode .panel h3,
-  body.light-mode .combo-half h3,
-  body.light-mode .kv .k,
-  body.light-mode .field-cell .f-label { color: var(--heading-green); font-weight: 700; }
-  body.light-mode .resp-row:hover { background: rgba(15,23,42,0.06); }
-  body.light-mode .gauge-wrap circle:first-child { stroke: var(--surface-3); }
-  body.light-mode .footer-note { opacity: 1; }
-  body.light-mode .modal-overlay { background: rgba(15,23,42,.45); }
-  body.light-mode .ticker-item .dot { box-shadow: none; }
-  #themeToggleBtn { padding: 5px 8px; }
-  #themeToggleBtn .icon-moon { display: none; }
-  #themeToggleBtn.active .icon-sun { display: none; }
-  #themeToggleBtn.active .icon-moon { display: block; }
+/* ---------- dialog cod ---------- */
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); padding: 0; width: min(380px, calc(100% - 32px)); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+dialog::backdrop { background: rgba(10,14,20,.4); }
+dialog form { padding: 18px; }
+dialog h2 { margin: 0 0 4px; font-size: 16px; }
+dialog p { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; }
+dialog input { width: 100%; height: 38px; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 10px; background: var(--panel); font-size: 16px; letter-spacing: .15em; }
+dialog .rand-btn { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 8px; font-size: 13px; z-index: 50; display: none; max-width: calc(100% - 32px); }
+.subsol { text-align: center; color: var(--ink-3); font-size: 12px; margin-top: 14px; }
+.ascuns { display: none !important; }
+@media (max-width: 760px) {
+  .top { position: static; }
+  .top-in { gap: 8px; padding: 8px 12px; }
+  .top-in .btn .txt { display: none; }
+  .logo h1 { font-size: 15px; }
+  main { padding: 12px; }
+  .kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .kpi button { padding: 7px 9px; }
+  .kpi .eticheta { font-size: 11px; }
+  .kpi .val { font-size: 20px; }
+  .cauta { max-width: none; flex-basis: 100%; }
+  .filtre select { flex: 1 1 40%; max-width: none; }
+  .filtre .spatiu { display: none; }
+  .filtre .btn.primar { flex: 1 1 100%; justify-content: center; order: -1; }
+}
 </style>
 </head>
 <body>
-<div class="dash">
 
-  <div class="sticky-top">
-  <div class="header-row">
-    <div class="brand">
-      <div class="brand-mark">GR</div>
-      <div>
-        <h1>Grind Rings Action Tracker</h1>
-        <div class="status-strip">
-          <span class="live-dot" id="liveDot"></span>
-          <span id="sourceLabel">Se încarcă din fișier…</span>
-        </div>
-      </div>
+<div class="top">
+  <div class="top-in">
+    <div class="logo">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+        <circle cx="17" cy="17" r="15" fill="none" stroke="var(--accent)" stroke-width="5"/>
+        <circle cx="17" cy="17" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.5" stroke-dasharray="2.5 2.5"/>
+      </svg>
+      <div><h1>Grind Rings Action Tracker</h1><small id="stareDate">se încarcă…</small></div>
     </div>
-    <div class="ticker-bar">
-      <div class="ticker-track" id="tickerTrack"><div class="ticker-item"><span class="dot"></span><b>Indicatori</b><span class="val-warn">se încarcă…</span></div></div>
-    </div>
-    <div class="header-right">
-      <div class="clock">
-        <span id="clockTime">--:--</span>
-        <span class="date" id="clockDate">—</span>
-      </div>
-      <div class="header-btns">
-        <a class="refresh-btn" href="grafice" title="Grafice" style="text-decoration:none;">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          Grafice
-        </a>
-        <button class="refresh-btn" id="refreshBtn">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          Reîmprospătează
-        </button>
-        <button class="refresh-btn" id="toggleResolvedBtn">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          <span id="toggleResolvedLabel">Arată rezolvate</span>
-        </button>
-        <button class="refresh-btn" id="themeToggleBtn" title="Comută fundal luminos / întunecat (pentru proiector)">
-          <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        </button>
-        <button class="toggle-analytics-btn" id="toggleAnalyticsBtn">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          <span id="toggleAnalyticsLabel">Statistici</span>
-        </button>
-      </div>
-    </div>
+    <a class="btn" href="grafice">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="txt">Grafice</span></a>
+    <a class="btn" href="api/export.csv" title="Descarcă toate acțiunile (se deschide în Excel)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg><span class="txt">Export</span></a>
+    <button class="btn" id="btnTema" title="Schimbă tema">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <span id="zonaEditor"></span>
   </div>
-
-  <div class="error-banner" id="errorBanner"></div>
-
-  <div class="alert-banner" id="alertBanner">
-    <svg class="alert-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    <span id="alertText"></span>
-  </div>
-
-  <div class="stat-strip">
-    <span class="item">Total <b id="statTotal">0</b></span>
-    <span class="item accent-coral">Întârziate <b id="statOverdue">0</b></span>
-    <span class="item accent-coral">Urgențe client <b id="statUrgent">0</b></span>
-    <span class="item">Active <b id="statOpen">0</b></span>
-    <span class="item">Rezolvate <b id="statResolved">0</b></span>
-    <span class="item">Rată rezolvare <b id="statRate">0%</b></span>
-    <span class="item">Clienți afectați <b id="statClientsHeader">0</b></span>
-    <span class="item">Comenzi afectate <b id="statOrdersHeader">0</b></span>
-  </div>
-
-  <div class="analytics-grid">
-    <div class="panel">
-      <div class="combo-panel">
-        <div class="combo-half">
-          <h3>Rată de rezolvare</h3>
-          <div class="gauge-wrap">
-            <svg width="80" height="80" viewBox="0 0 88 88">
-              <circle cx="44" cy="44" r="38" fill="none" stroke="#262f3d" stroke-width="9"/>
-              <circle id="gaugeCircle" cx="44" cy="44" r="38" fill="none" stroke="#43b8a6" stroke-width="9" stroke-linecap="round" stroke-dasharray="238.76" stroke-dashoffset="238.76" transform="rotate(-90 44 44)" style="transition: stroke-dashoffset .6s ease;"/>
-            </svg>
-            <div>
-              <div class="gauge-num" id="gaugePct">0%</div>
-              <div class="gauge-sub" id="gaugeSub">0 din 0 rezolvate</div>
-            </div>
-          </div>
-        </div>
-        <div class="combo-divider"></div>
-        <div class="combo-half">
-          <h3>Distribuție stadiu</h3>
-          <div class="donut-wrap">
-            <div class="donut" id="statusDonut">
-              <div class="donut-center"><span class="n" id="donutTotal">0</span></div>
-            </div>
-            <div class="legend" id="statusLegend"></div>
-          </div>
-        </div>
-      </div>
-      <div class="combo-divider-h"></div>
-      <h3>Urgent client (active)</h3>
-      <div class="donut-wrap">
-        <div class="donut" id="urgentDonut">
-          <div class="donut-center"><span class="n" id="urgentDonutTotal">0</span></div>
-        </div>
-        <div class="legend" id="urgentLegend"></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>Distribuție tip acțiune (active)</h2>
-      <div id="typeBars" class="scroll-area"></div>
-      <div class="sub-block-heading">Familie rulment (active)</div>
-      <div id="familyBars" class="scroll-area"></div>
-    </div>
-
-    <div class="panel">
-      <h2>Alți indicatori</h2>
-      <div class="mini-stat-row">
-        <span class="mini-label">Vechime medie active</span>
-        <span class="mini-value" id="statAvgAge">—</span>
-      </div>
-      <div class="mini-stat-row">
-        <span class="mini-label">Cea mai veche acțiune activă<span class="mini-sub mini-sub-link" id="statOldestTitle"></span></span>
-        <span class="mini-value" id="statOldestAge">—</span>
-      </div>
-      <div class="mini-stat-row">
-        <span class="mini-label">Clienți afectați (activ)</span>
-        <span class="mini-value" id="statClients">—</span>
-      </div>
-      <div class="mini-stat-row">
-        <span class="mini-label">Familie cu cele mai multe active<span class="mini-sub" id="statTopFamilyTitle"></span></span>
-        <span class="mini-value" id="statTopFamily">—</span>
-      </div>
-      <div class="mini-stat-row">
-        <span class="mini-label">Comandă montaj cu cele mai multe restanțe<span class="mini-sub mini-sub-link" id="statTopOrderTitle"></span></span>
-        <span class="mini-value" id="statTopOrder">—</span>
-      </div>
-    </div>
-
-    <div class="panel" id="leaderboardPanel">
-      <h2>Acțiuni active pe responsabil</h2>
-      <div id="leaderboardArea" class="scroll-area"></div>
-    </div>
-  </div>
-  <div class="controls">
-    <div class="search-box">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="searchInput" placeholder="Caută după orice câmp din grilă…">
-      <button type="button" id="clearSearchBtn" title="Șterge căutarea" style="display:none;">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <select class="filter-select" id="statusFilter">
-      <option>Toate</option>
-      <option>Deschis</option>
-      <option>În lucru</option>
-    </select>
-    <select class="filter-select" id="urgentFilter">
-      <option value="Toate">Toate</option>
-      <option value="Urgent">Doar urgențe client</option>
-    </select>
-    <button class="sort-btn" id="sortBtn">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16l-4 4-4-4"/><path d="M17 20V4"/><path d="M3 8l4-4 4 4"/><path d="M7 4v16"/></svg>
-      <span id="sortLabel">Termen</span>
-    </button>
-    <button class="sort-btn" id="printAllBtn" title="Printează toate acțiunile din lista curentă (respectă căutarea și filtrele active)">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-      <span>Printează tot</span>
-    </button>
-    <button class="sort-btn" id="addActionBtn" style="border-color:var(--teal);color:var(--teal);" title="Adaugă o acțiune nouă">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>Acțiune nouă</span>
-    </button>
-  </div>
-  </div>
-
-  <div id="addActionModal" class="modal-overlay" style="display:none;">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2 id="addActionModalTitle">Acțiune nouă</h2>
-        <button class="modal-close" id="closeAddActionBtn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="modal-grid">
-          <label>Client<input type="text" id="naClient" list="dlClient" required></label>
-          <label>Responsabil<input type="text" id="naResponsabil" list="dlResponsabil" required></label>
-          <label class="wide">Acțiune<input type="text" id="naActiune" required></label>
-          <label>Tip acțiune<input type="text" id="naTipActiune" list="dlTipActiune"></label>
-          <label>SAP id Rulment<input type="text" id="naSapRulment"></label>
-          <label>Descriere Rulment<input type="text" id="naDescRulment"></label>
-          <label>Familie Rulment<input type="text" id="naFamilie" list="dlFamilie"></label>
-          <label>Comandă Montaj<input type="text" id="naComandaMontaj"></label>
-          <label>SAP id Component<input type="text" id="naSapComponent"></label>
-          <label>Descriere Component<input type="text" id="naDescComponent"></label>
-          <label>Tip component<input type="text" id="naTipComponent" list="dlTipComponent"></label>
-          <label>Comandă Component<input type="text" id="naComandaComponent"></label>
-          <label>Qty<input type="text" id="naQty"></label>
-          <label>Data planificată<input type="date" id="naDataPlanificata" required></label>
-          <label>Stadiu
-            <select id="naStadiu"><option value="Deschis">Deschis</option><option value="În lucru">În lucru</option><option value="Rezolvat">Rezolvat</option></select>
-          </label>
-          <label>Urgent client
-            <select id="naUrgent"><option value="Nu">Nu</option><option value="Da">Da</option></select>
-          </label>
-          <label class="wide">Comentarii<input type="text" id="naComentarii"></label>
-          <label class="wide">Codul tău personal<input type="password" id="naPin" autocomplete="off" required></label>
-        </div>
-        <div id="addActionResult"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="modal-btn-secondary" id="cancelAddActionBtn">Anulează</button>
-        <button class="modal-btn-primary" id="submitAddActionBtn">Salvează acțiunea</button>
-      </div>
-    </div>
-  </div>
-  <datalist id="dlClient"></datalist>
-  <datalist id="dlResponsabil"></datalist>
-  <datalist id="dlTipActiune"></datalist>
-  <datalist id="dlFamilie"></datalist>
-  <datalist id="dlTipComponent"></datalist>
-
-  <div class="analytics-section" id="analyticsSection" style="display:none;">
-    <div class="analytics-grid-2">
-      <div class="panel" id="chartPanel">
-        <h2>Acțiuni pe client (după stadiu)</h2>
-        <div id="chartArea" class="scroll-area"></div>
-      </div>
-
-      <div class="panel" id="clientAgePanel">
-        <h2>Vechime medie pe client (active)</h2>
-        <div id="clientAgeArea" class="scroll-area"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="list-header">
-    <h2>Acțiuni în curs de rezolvare</h2>
-    <span id="listCount"></span><button type="button" class="resp-chip" id="respChip" title="Șterge filtrul pe responsabil"><span class="chip-name"></span> <span>✕</span></button>
-  </div>
-  <div class="table-wrap">
-    <div id="issueList"></div>
-  </div>
-
-  <div id="resolvedSection" style="display:none;">
-    <div class="list-header" style="margin-top:18px;">
-      <h2 style="color:var(--muted); font-size:13px;">Acțiuni rezolvate</h2>
-      <span id="resolvedCount" style="color:var(--muted); font-size:12px;"></span>
-    </div>
-    <div class="table-wrap">
-      <div id="resolvedList"></div>
-    </div>
-  </div>
-
-  <div class="footer-note">Dashboard actualizat automat din baza de date de pe server &middot; build 2026-08-29-daily-log</div>
 </div>
 
+<main>
+  <div class="eroare-banda" id="eroare"></div>
+
+  <div class="kpi" id="kpi"></div>
+
+  <div class="filtre">
+    <div class="cauta">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="fCauta" type="search" placeholder="Caută: reper, comandă, problemă, acțiune…">
+    </div>
+    <select id="fStadiu" aria-label="Stadiu">
+      <option value="active">Active (deschise + în lucru)</option>
+      <option value="toate">Toate</option>
+      <option value="Deschis">Deschis</option>
+      <option value="În lucru">În lucru</option>
+      <option value="Închis">Închis</option>
+    </select>
+    <select id="fPrioritate" aria-label="Prioritate"><option value="">Orice prioritate</option><option>Urgentă</option><option>Ridicată</option><option>Normală</option></select>
+    <select id="fMasina" aria-label="Mașină"><option value="">Toate mașinile</option></select>
+    <select id="fResp" aria-label="Responsabil"><option value="">Toți responsabilii</option></select>
+    <span class="spatiu"></span>
+    <span class="contor" id="contor"></span>
+    <button class="btn primar" id="btnNou">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Acțiune nouă</button>
+  </div>
+
+  <div class="tabel-wrap">
+    <table>
+      <thead><tr id="antet"></tr></thead>
+      <tbody id="corp"></tbody>
+    </table>
+    <div class="gol ascuns" id="gol">Nicio acțiune pentru filtrele alese.</div>
+  </div>
+  <div class="subsol">Datele se reîmprospătează automat la 30 de secunde · server Grind Rings (port 8092)</div>
+</main>
+
+<div class="voal" id="voal"></div>
+<aside class="panou" id="panou" aria-hidden="true">
+  <header>
+    <h2 id="pTitlu">Acțiune</h2>
+    <button class="inchide" id="pInchide" aria-label="Închide"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <div class="continut" id="pContinut"></div>
+  <footer id="pSubsol"></footer>
+</aside>
+
+<dialog id="dlgCod">
+  <form method="dialog" id="formCod">
+    <h2>Autentificare editor</h2>
+    <p>Introdu codul personal ca să poți adăuga și modifica acțiuni. Rămâi autentificat până închizi browserul.</p>
+    <input id="inCod" type="password" autocomplete="off" inputmode="numeric" placeholder="cod personal">
+    <div class="mesaj" id="codMesaj"></div>
+    <div class="rand-btn">
+      <button class="btn" value="anulat" formnovalidate>Anulează</button>
+      <button class="btn primar" id="btnCodOk" value="ok">Intră</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<datalist id="dlMasina"></datalist><datalist id="dlClient"></datalist>
+<datalist id="dlResponsabil"></datalist><datalist id="dlReper"></datalist>
+
 <script>
-/* ====== CONFIGURARE ====== */
-// Actiunile vin din baza de date a serverului Python (server.py), nu din Excel.
-const EXCEL_FILE_URL = "api/actions";
-const LISTS_API_URL = "api/lists";
-const REFRESH_INTERVAL_MS = 30000;
-// Acelasi server Python care serveste aceasta pagina (port 8092).
-const ACTION_LISTENER_URL = new URL("./", window.location.href).href;
-// Fisierele atasate sunt servite tot de serverul Python.
-const ATTACHMENTS_BASE_URL = new URL("attachments/", window.location.href).href;
-// Identifica acest sistem fata de celalalt (Follow-up) in fata ascultatorului comun.
-const LISTENER_SOURCE = "grindrings";
-/* ========================= */
+"use strict";
+const REFRESH_MS = 30000;
+const COLOANE = [
+  { k: "nr", t: "Nr", cls: "c-nr" },
+  { k: "prioritate", t: "Prioritate", cls: "c-pr" },
+  { k: "masina", t: "Mașină / Linie", cls: "c-masina" },
+  { k: "reper", t: "Reper / Comandă", cls: "c-reper" },
+  { k: "problema", t: "Problemă / Acțiune", cls: "c-txt" },
+  { k: "responsabil", t: "Responsabil", cls: "c-resp" },
+  { k: "termen", t: "Termen", cls: "c-termen" },
+  { k: "stadiu", t: "Stadiu", cls: "c-stadiu" },
+  { k: "modificat_la", t: "", cls: "c-ico" },
+];
+const ORDINE_PR = { "Urgentă": 0, "Ridicată": 1, "Normală": 2 };
+const ORDINE_ST = { "Deschis": 0, "În lucru": 1, "Închis": 2 };
 
-const STATUS_COLOR = { "Deschis": "#e1596b", "În lucru": "#e8a33d", "Rezolvat": "#43b8a6" };
-const TYPE_COLORS = ["#5b8def", "#9b7ee8", "#e8a33d", "#43b8a6", "#e1596b", "#f2a65a", "#7ec4e8", "#c792ea", "#8d97ac"];
-const CLIENT_COLORS = ["#5b8def", "#9b7ee8", "#e8a33d", "#43b8a6", "#e1596b"];
-
-const FIELD_KEYWORDS = {
-  no: ["no", "nr", "nr crt", "numar"],
-  dataAdaugare: ["data adaugare", "data adăugare", "data creare", "added"],
-  sapRulment: ["sap id rulment", "sap rulment"],
-  descRulment: ["descriere rulment"],
-  familieRulment: ["familie rulment", "familie"],
-  comandaMontaj: ["comanda montaj"],
-  client: ["client"],
-  sapComponent: ["sap id component", "sap component"],
-  descComponent: ["descriere component"],
-  tipComponent: ["tip component"],
-  comandaComponent: ["comanda component"],
-  qty: ["qty", "cantitate"],
-  tipActiune: ["tip actiune", "tip acțiune"],
-  actiune: ["actiune", "acțiune"],
-  responsabil: ["responsabil"],
-  dataPlanificata: ["data planificata", "data planificată"],
-  dataActuala: ["data finalizare", "data actuala", "data actuală"],
-  stadiu: ["stadiu", "status"],
-  comentarii: ["comentarii", "observatii", "note"],
-  urgentClient: ["urgent client", "urgent"],
+const st = {
+  actiuni: [], liste: {}, azi: null,
+  sortare: { k: "termen", dir: 1 }, kpi: null, selectat: null,
+  editor: null,
 };
+try { st.editor = JSON.parse(sessionStorage.getItem("grEditor") || "null"); } catch (e) {}
 
-function stripDiacritics(s) {
-  return String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ro = d => d ? d.slice(8, 10) + "." + d.slice(5, 7) + "." + d.slice(0, 4) : "";
+
+function zileRamase(a) {
+  if (!a.termen || a.stadiu === "Închis") return null;
+  return Math.round((new Date(a.termen + "T00:00:00") - new Date(st.azi + "T00:00:00")) / 86400000);
+}
+function toast(t) {
+  const el = $("toast"); el.textContent = t; el.style.display = "block";
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.style.display = "none", 3200);
 }
 
-function detectColumns(headers) {
-  const map = {};
-  const norm = headers.map(stripDiacritics);
-  // pasul 1: potrivire exactă
-  for (const field of Object.keys(FIELD_KEYWORDS)) {
-    for (const kw of FIELD_KEYWORDS[field]) {
-      const idx = norm.findIndex((h) => h === kw);
-      if (idx !== -1) { map[field] = headers[idx]; break; }
-    }
+/* ---------- comunicare cu serverul ---------- */
+async function api(cale, date) {
+  const opt = date === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cod: st.editor?.cod, ...date }) };
+  const r = await fetch(cale, { cache: "no-store", ...opt });
+  let j = {};
+  try { j = await r.json(); } catch (e) {}
+  if (r.status === 403 && date !== undefined) { iesire(); }
+  if (!r.ok || j.ok === false) throw new Error(j.eroare || "Eroare " + r.status);
+  return j;
+}
+
+async function incarca() {
+  try {
+    const [a, l] = await Promise.all([api("api/actiuni?t=" + Date.now()), api("api/liste?t=" + Date.now())]);
+    st.actiuni = a.actiuni; st.azi = a.azi; st.liste = l.liste;
+    $("eroare").style.display = "none";
+    $("stareDate").textContent = "actualizat la " + new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+    umpleListe();
+    deseneaza();
+  } catch (e) {
+    $("eroare").textContent = "Nu pot citi datele de la server (" + e.message + "). Verifică dacă server.py rulează.";
+    $("eroare").style.display = "block";
   }
-  // pasul 2: potrivire parțială, doar pentru câmpurile nerezolvate
-  for (const field of Object.keys(FIELD_KEYWORDS)) {
-    if (map[field]) continue;
-    for (const kw of FIELD_KEYWORDS[field]) {
-      const idx = norm.findIndex((h) => h.includes(kw));
-      if (idx !== -1) { map[field] = headers[idx]; break; }
-    }
+}
+
+function umpleListe() {
+  const pune = (id, vals) => { $(id).innerHTML = vals.map(v => `<option value="${esc(v)}">`).join(""); };
+  pune("dlMasina", st.liste.masina || []); pune("dlClient", st.liste.client || []);
+  pune("dlResponsabil", st.liste.responsabil || []); pune("dlReper", st.liste.reper || []);
+  for (const [id, k, gol] of [["fMasina", "masina", "Toate mașinile"], ["fResp", "responsabil", "Toți responsabilii"]]) {
+    const sel = $(id), v = sel.value;
+    sel.innerHTML = `<option value="">${gol}</option>` + (st.liste[k] || []).map(x => `<option>${esc(x)}</option>`).join("");
+    sel.value = v;
   }
-  return map;
 }
 
-function normalizeStadiu(raw) {
-  const s = stripDiacritics(raw);
-  if (!s) return "Deschis";
-  if (/(rezolv|inchis|closed|done|finalizat)/.test(s)) return "Rezolvat";
-  if (/(lucru|progress|wip|analiza)/.test(s)) return "În lucru";
-  return "Deschis";
-}
-function normalizeUrgent(raw) {
-  const s = stripDiacritics(raw);
-  return /^(da|yes|true|1|x)$/.test(s);
-}
-function parseDate(val) {
-  if (val instanceof Date) return val.toISOString().slice(0, 10);
-  if (typeof val === "number") {
-    const d = new Date(Math.round((val - 25569) * 86400000)); // numar serial de data (stil Excel)
-    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-  }
-  const s = String(val ?? "").trim();
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-  return s || null;
-}
-
-function rowsFromSheet(json) {
-  if (!json.length) return [];
-  const headers = Object.keys(json[0]);
-  const colMap = detectColumns(headers);
-  const get = (r, field) => { const col = colMap[field]; return col ? r[col] : undefined; };
-  return json.map((r, i) => ({
-    id: i,
-    no: get(r, "no") ?? (i + 1),
-    dataAdaugare: parseDate(get(r, "dataAdaugare")),
-    sapRulment: String(get(r, "sapRulment") ?? "").trim(),
-    descRulment: String(get(r, "descRulment") ?? "").trim(),
-    familieRulment: String(get(r, "familieRulment") ?? "").trim(),
-    comandaMontaj: String(get(r, "comandaMontaj") ?? "").trim(),
-    client: String(get(r, "client") ?? "Necunoscut").trim() || "Necunoscut",
-    sapComponent: String(get(r, "sapComponent") ?? "").trim(),
-    descComponent: String(get(r, "descComponent") ?? "").trim(),
-    tipComponent: String(get(r, "tipComponent") ?? "").trim(),
-    comandaComponent: String(get(r, "comandaComponent") ?? "").trim(),
-    qty: String(get(r, "qty") ?? "").trim(),
-    actiune: String(get(r, "actiune") ?? "Fără titlu").trim() || "Fără titlu",
-    tipActiune: String(get(r, "tipActiune") ?? "—").trim() || "—",
-    responsabil: String(get(r, "responsabil") ?? "Nealocat").trim() || "Nealocat",
-    dataPlanificata: parseDate(get(r, "dataPlanificata")),
-    dataActuala: parseDate(get(r, "dataActuala")),
-    stadiu: normalizeStadiu(get(r, "stadiu")),
-    comentarii: String(get(r, "comentarii") ?? "").trim(),
-    urgent: normalizeUrgent(get(r, "urgentClient")),
-  })).filter(r => r.actiune !== "Fără titlu" || r.client !== "Necunoscut" || r.comandaMontaj);
-}
-
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const target = new Date(dateStr);
-  if (isNaN(target.getTime())) return null;
-  const today = new Date(); today.setHours(0,0,0,0); target.setHours(0,0,0,0);
-  return Math.round((target - today) / 86400000);
-}
-function daysUntilFrom(targetStr, fromStr) {
-  if (!targetStr) return null;
-  const target = new Date(targetStr);
-  if (isNaN(target.getTime())) return null;
-  const from = fromStr ? new Date(fromStr) : new Date();
-  if (isNaN(from.getTime())) return daysUntil(targetStr);
-  target.setHours(0,0,0,0); from.setHours(0,0,0,0);
-  return Math.round((target - from) / 86400000);
-}
-function ageDays(dateStr) { const d = daysUntil(dateStr); return d === null ? null : -d; }
-function ziLabel(n) { return Math.abs(n) === 1 ? "zi" : "zile"; }
-
-function escapeHTML(s) {
-  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
-}
-
-function urgencyChipHTML(stadiu, termen, dataActuala) {
-  if (stadiu === "Rezolvat") return `<span class="chip chip-teal">✓ Rezolvat</span>`;
-  const d = daysUntilFrom(termen, dataActuala);
-  if (d === null) return `<span class="chip chip-muted">fără termen</span>`;
-  if (d < 0) return `<span class="chip chip-coral">⚠ depășit ${Math.abs(d)} ${ziLabel(d)}</span>`;
-  if (d <= 3) return `<span class="chip chip-amber">⏱ ${d === 0 ? "azi" : `${d} ${ziLabel(d)} ${d === 1 ? "rămasă" : "rămase"}`}</span>`;
-  return `<span class="chip chip-muted">${d} ${ziLabel(d)} ${d === 1 ? "rămasă" : "rămase"}</span>`;
-}
-
-function formatDateDisplay(dateStr) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function issueRowHTML(r, dimmed) {
-  const age = ageDays(r.dataAdaugare);
-
-  // Ordinea coloanelor exact ca in Excel: Data adaugare, SAP id Rulment, Descriere Rulment,
-  // Familie Rulment, Comanda Montaj, Client, SAP id Component, Descriere Component, Tip component,
-  // Comanda Component, Actiune, Tip Actiune, Responsabil, Data Finalizare
-  // (Nr, Data Planificata, Stadiu, Comentarii, Urgent Client apar deja separat pe card)
-  const fieldsList = [
-    ["Acțiune", escapeHTML(r.actiune), true],
-    ["Data adăugare", formatDateDisplay(r.dataAdaugare)],
-    ["Vechime", age === null ? "—" : age + " " + ziLabel(age)],
-    ["SAP id Rulment", escapeHTML(r.sapRulment) || "—"],
-    ["Descriere Rulment", escapeHTML(r.descRulment) || "—", true],
-    ["Familie", escapeHTML(r.familieRulment) || "—"],
-    ["Comandă Montaj", escapeHTML(r.comandaMontaj) || "—"],
-    ["Client", escapeHTML(r.client)],
-    ["SAP id Component", escapeHTML(r.sapComponent) || "—"],
-    ["Descriere Component", escapeHTML(r.descComponent) || "—", true],
-    ["Tip component", escapeHTML(r.tipComponent) || "—"],
-    ["Comandă Component", escapeHTML(r.comandaComponent) || "—"],
-    ["Tip acțiune", escapeHTML(r.tipActiune) || "—"],
-    ["Responsabil", escapeHTML(r.responsabil)],
-    ["Data finalizare", formatDateDisplay(r.dataActuala)],
+/* ---------- indicatori ---------- */
+function deseneazaKpi() {
+  const A = st.actiuni;
+  const active = A.filter(a => a.stadiu !== "Închis");
+  const prag = new Date(st.azi + "T00:00:00"); prag.setDate(prag.getDate() - 30);
+  const k = [
+    { id: "deschis", t: "Deschise", n: A.filter(a => a.stadiu === "Deschis").length, c: "var(--slate)" },
+    { id: "lucru", t: "În lucru", n: A.filter(a => a.stadiu === "În lucru").length, c: "var(--amber)" },
+    { id: "intarziate", t: "Întârziate", n: active.filter(a => zileRamase(a) < 0).length, c: "var(--red)" },
+    { id: "urgente", t: "Urgente active", n: active.filter(a => a.prioritate === "Urgentă").length, c: "var(--orange)" },
+    { id: "inchise30", t: "Închise (30 zile)", n: A.filter(a => a.stadiu === "Închis" && a.data_inchidere && new Date(a.data_inchidere + "T00:00:00") >= prag).length, c: "var(--green)" },
   ];
-
-  // Ascunde căsuțele fără date (gol, "—", "-", NA, N/A, #N/A)
-  const isEmptyVal = (v) => /^(|—|-|–|na|n\/a|#n\/a|n\.a\.?)$/i.test(String(v ?? "").trim());
-  const fieldsHTML = fieldsList.filter(([, value]) => !isEmptyVal(value)).map(([label, value, wide]) =>
-    `<div class="field-cell${wide ? " wide" : ""}"><div class="f-label">${label}</div><div class="f-value">${value}</div></div>`
-  ).join("");
-
-  const commentLines = r.comentarii ? r.comentarii.split(/\r\n|\n/).filter(l => l.trim()) : [];
-  const cardKey = escapeHTML(String(r.no ?? r.actiune));
-  const commentBlock = commentLines.length ? `
-      <details class="comment-details details-toggle" data-detail-id="comment-${cardKey}${dimmed ? "-resolved" : ""}">
-        <summary>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
-          <span>${commentLines.length === 1 ? "1 comentariu" : commentLines.length + " comentarii"}</span>
-        </summary>
-        <div class="comment-highlight">
-          ${commentLines.map(line => `<div class="comment-line">${escapeHTML(line)}</div>`).join("")}
-        </div>
-      </details>` : "";
-
-  const mailSubject = encodeURIComponent(`Actiune #${r.no ?? ""} - ${r.actiune || ""}`);
-  const mailBody = encodeURIComponent(
-    `Comanda Montaj: ${r.comandaMontaj || "-"}\r\n` +
-    `Descriere Rulment: ${r.descRulment || "-"}\r\n\r\n` +
-    `Comanda Component: ${r.comandaComponent || "-"}\r\n` +
-    `Descriere Component: ${r.descComponent || "-"}\r\n\r\n` +
-    `Actiune: ${r.actiune || "-"}`
-  );
-  const mailtoHref = `mailto:?subject=${mailSubject}&body=${mailBody}`;
-
-  return `
-    <div class="issue-card" data-print-id="${cardKey}${dimmed ? "-resolved" : ""}" style="--priority-color:${STATUS_COLOR[r.stadiu]}; ${dimmed ? "opacity:.7;" : ""}">
-      <div class="issue-title-row">
-        <span class="no-badge">#${escapeHTML(String(r.no ?? "—"))}</span>
-        <button class="print-btn" title="Printează această acțiune" onclick="printAction('${cardKey}${dimmed ? "-resolved" : ""}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-        </button>
-        <a class="print-btn mail-btn" href="${mailtoHref}" title="Trimite această acțiune pe mail">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        </a>
-        <button class="print-btn attach-btn" title="Atașează un fișier la această acțiune" onclick="triggerAttach('${cardKey}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        </button>
-        <button class="print-btn edit-btn" title="Editează această acțiune (inclusiv stadiul)" onclick="openEditModal('${cardKey}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button class="print-btn delete-btn" title="Șterge această acțiune" onclick="deleteAction('${cardKey}', '${escapeHTML((r.actiune || "").replace(/'/g, "\\'"))}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
-        <span class="status-pill" style="background:${STATUS_COLOR[r.stadiu]}22; color:${STATUS_COLOR[r.stadiu]};">${r.stadiu}</span>
-        ${r.urgent && r.stadiu !== "Rezolvat" ? `<span class="urgent-pill"><span class="p-dot"></span>URGENT CLIENT</span>` : ""}
-        ${urgencyChipHTML(r.stadiu, r.dataPlanificata, r.dataActuala)}
-      </div>
-      <div class="field-grid">${fieldsHTML}</div>
-      ${commentBlock}
-      <div class="attach-status" id="attachStatus-${cardKey}"></div>
-      <div class="attach-list" id="attachList-${cardKey}"></div>
-    </div>`;
+  $("kpi").innerHTML = k.map(x => `<button data-kpi="${x.id}" class="${st.kpi === x.id ? "activ" : ""}" title="Filtrează">
+      <div class="eticheta"><span class="punct" style="background:${x.c}"></span>${x.t}</div>
+      <div class="val">${x.n}</div></button>`).join("");
 }
-
-let state = { rows: [], search: "", statusFilter: "Toate", urgentFilter: "Toate", respFilter: null, sortBy: "termen", showResolved: false, openDetails: loadOpenDetails() };
-
-function loadOpenDetails() {
-  try {
-    const raw = localStorage.getItem("pdTrackerOpenDetails");
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch (e) { return new Set(); }
-}
-
-function saveOpenDetails() {
-  try { localStorage.setItem("pdTrackerOpenDetails", JSON.stringify([...state.openDetails])); } catch (e) {}
-}
-
-function printAction(id) {  const card = document.querySelector(`.issue-card[data-print-id="${CSS.escape(id)}"]`);
-  if (!card) return;
-  document.querySelectorAll(".issue-card.print-target").forEach(el => el.classList.remove("print-target"));
-  card.classList.add("print-target");
-  document.body.classList.add("printing-single");
-  const cleanup = () => {
-    document.body.classList.remove("printing-single");
-    card.classList.remove("print-target");
-    window.removeEventListener("afterprint", cleanup);
-  };
-  window.addEventListener("afterprint", cleanup);
-  window.print();
-}
-
-function triggerAttach(cardKey) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.style.display = "none";
-  document.body.appendChild(input);
-  input.addEventListener("change", async () => {
-    const file = input.files[0];
-    document.body.removeChild(input);
-    if (!file) return;
-    await uploadAttachment(cardKey, file);
-  });
-  input.click();
-}
-
-async function uploadAttachment(cardKey, file) {
-  const pin = prompt("Introdu codul tău personal pentru a atașa acest fișier:");
-  if (pin === null) return;
-
-  const statusEl = document.getElementById(`attachStatus-${cardKey}`);
-  if (statusEl) { statusEl.className = "attach-status"; statusEl.textContent = `Se încarcă „${file.name}"…`; }
-
-  try {
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(",")[1]);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    const uploadUrl = ACTION_LISTENER_URL.replace(/\/?$/, "/") + "upload";
-    const res = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: LISTENER_SOURCE, no: cardKey, filename: file.name, contentBase64: base64, pin }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    const json = await res.json();
-
-    if (statusEl) {
-      if (res.ok && json.ok) {
-        statusEl.className = "attach-status ok";
-        statusEl.textContent = `„${file.name}" atașat cu succes.`;
-        refreshAttachList(cardKey);
-      } else if (res.status === 403) {
-        statusEl.className = "attach-status error";
-        statusEl.textContent = `Cod incorect. Fișierul nu a fost atașat.`;
-      } else {
-        statusEl.className = "attach-status error";
-        statusEl.textContent = `Eroare: ${json.error || "necunoscută"}. Verifică dacă server.py rulează.`;
-      }
-    }
-  } catch (err) {
-    if (statusEl) {
-      statusEl.className = "attach-status error";
-      statusEl.textContent = `Nu am putut trimite fișierul — verifică dacă ascultătorul rulează pe stația configurată.`;
-    }
-  }
-}
-
-async function refreshAttachList(cardKey) {
-  const listEl = document.getElementById(`attachList-${cardKey}`);
-  if (!listEl) return;
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const listUrl = ACTION_LISTENER_URL.replace(/\/?$/, "/") + "list?no=" + encodeURIComponent(cardKey) + "&source=" + LISTENER_SOURCE;
-    const res = await fetch(listUrl, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!res.ok) return;
-    const json = await res.json();
-    if (!json.ok || !json.files || !json.files.length) { listEl.innerHTML = ""; return; }
-    listEl.innerHTML = json.files.map(f => {
-      const url = ATTACHMENTS_BASE_URL + LISTENER_SOURCE + "/" + encodeURIComponent(cardKey) + "/" + encodeURIComponent(f);
-      return `<a class="attach-chip" href="${url}" target="_blank" title="${escapeHTML(f)}">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        ${escapeHTML(f)}
-      </a>`;
-    }).join("");
-  } catch (err) {
-    // liniste - daca ascultatorul nu raspunde, pur si simplu nu aratam lista
-  }
-}
-
-function printAllVisible() {
-  document.body.classList.add("printing-all");
-  const cleanup = () => {
-    document.body.classList.remove("printing-all");
-    window.removeEventListener("afterprint", cleanup);
-  };
-  window.addEventListener("afterprint", cleanup);
-  window.print();
-}
-
-function reapplyDetailsState(container) {
-  container.querySelectorAll(".details-toggle[data-detail-id]").forEach(el => {
-    const id = el.getAttribute("data-detail-id");
-    el.open = state.openDetails.has(id);
-    el.addEventListener("toggle", () => {
-      if (el.open) state.openDetails.add(id);
-      else state.openDetails.delete(id);
-      saveOpenDetails();
-    });
-  });
-}
-
-function render() {
-  const rows = state.rows;
-  const total = rows.length;
-  const resolved = rows.filter(r => r.stadiu === "Rezolvat").length;
-  const overdue = rows.filter(r => r.stadiu !== "Rezolvat" && daysUntilFrom(r.dataPlanificata, r.dataActuala) < 0).length;
-  const open = total - resolved;
-  const urgentActive = rows.filter(r => r.stadiu !== "Rezolvat" && r.urgent).length;
-
-  document.getElementById("statTotal").textContent = total;
-  document.getElementById("statOverdue").textContent = overdue;
-  document.getElementById("statUrgent").textContent = urgentActive;
-  document.getElementById("statOpen").textContent = open;
-  document.getElementById("statResolved").textContent = resolved;
-  document.getElementById("statRate").textContent = (total ? Math.round((resolved/total)*100) : 0) + "%";
-  const activeClientsHeader = new Set(rows.filter(r => r.stadiu !== "Rezolvat").map(r => r.client));
-  document.getElementById("statClientsHeader").textContent = activeClientsHeader.size;
-  const activeOrdersHeader = new Set(rows.filter(r => r.stadiu !== "Rezolvat" && r.comandaMontaj).map(r => r.comandaMontaj));
-  document.getElementById("statOrdersHeader").textContent = activeOrdersHeader.size;
-
-  // KPI secundare
-  const activeForAge = rows.filter(r => r.stadiu !== "Rezolvat" && r.dataAdaugare);
-  if (activeForAge.length) {
-    const ages = activeForAge.map(r => ageDays(r.dataAdaugare));
-    const avgAge = Math.round(ages.reduce((a,b)=>a+b,0) / ages.length);
-    document.getElementById("statAvgAge").textContent = avgAge + " " + ziLabel(avgAge);
-    let oldest = activeForAge[0];
-    activeForAge.forEach(r => { if (ageDays(r.dataAdaugare) > ageDays(oldest.dataAdaugare)) oldest = r; });
-    const oldestAge = ageDays(oldest.dataAdaugare);
-    document.getElementById("statOldestAge").textContent = oldestAge + " " + ziLabel(oldestAge);
-    document.getElementById("statOldestTitle").textContent = oldest.actiune;
-    document.getElementById("statOldestTitle").title = oldest.actiune + " (click pentru a vedea caseta)";
-    document.getElementById("statOldestTitle").dataset.printId = String(oldest.no ?? oldest.actiune);
-  } else {
-    document.getElementById("statAvgAge").textContent = "—";
-    document.getElementById("statOldestAge").textContent = "—";
-    document.getElementById("statOldestTitle").textContent = "—";
-    delete document.getElementById("statOldestTitle").dataset.printId;
-  }
-  const activeClients = new Set(rows.filter(r => r.stadiu !== "Rezolvat").map(r => r.client));
-  document.getElementById("statClients").textContent = activeClients.size || "—";
-
-  // alert banner
-  const alertBanner = document.getElementById("alertBanner");
-  const alertText = document.getElementById("alertText");
-  if (overdue > 0 || urgentActive > 0) {
-    alertBanner.style.display = "flex";
-    const parts = [];
-    if (overdue > 0) parts.push(`<strong>${overdue} ${overdue === 1 ? "acțiune întârziată" : "acțiuni întârziate"}</strong>`);
-    if (urgentActive > 0) parts.push(`<strong>${urgentActive} ${urgentActive === 1 ? "urgență client activă" : "urgențe client active"}</strong>`);
-    alertText.innerHTML = parts.join(" · ") + " necesită atenție imediată";
-  } else {
-    alertBanner.style.display = "none";
-  }
-
-  // gauge
-  const pct = total ? Math.round((resolved/total)*100) : 0;
-  const circumference = 238.76;
-  const offset = circumference - (pct/100)*circumference;
-  document.getElementById("gaugeCircle").setAttribute("stroke-dashoffset", offset.toFixed(2));
-  document.getElementById("gaugeCircle").setAttribute("stroke", pct>=70?"#43b8a6":pct>=40?"#e8a33d":"#e1596b");
-  document.getElementById("gaugePct").textContent = pct + "%";
-  document.getElementById("gaugeSub").textContent = `${resolved} din ${total} rezolvate`;
-
-  // status donut
-  const statusOrder = ["Deschis","În lucru","Rezolvat"];
-  const statusCounts = statusOrder.map(s => ({ name: s, value: rows.filter(r=>r.stadiu===s).length }));
-  let gradParts = []; let acc = 0;
-  statusCounts.forEach(sc => { const slice = total ? (sc.value/total)*100 : 0; if (slice>0){ gradParts.push(`${STATUS_COLOR[sc.name]} ${acc}% ${acc+slice}%`); acc+=slice; } });
-  document.getElementById("statusDonut").style.background = gradParts.length ? `conic-gradient(${gradParts.join(",")})` : "#262f3d";
-  document.getElementById("donutTotal").textContent = total;
-  document.getElementById("statusLegend").innerHTML = statusCounts.map(sc => `
-    <div class="legend-item"><span class="legend-dot" style="background:${STATUS_COLOR[sc.name]};"></span>${sc.name}<b>${sc.value}</b></div>`).join("");
-
-  // donut urgent client (active)
-  const activeTotal = total - resolved;
-  const normalActive = activeTotal - urgentActive;
-  const uParts = [];
-  if (activeTotal) {
-    if (urgentActive > 0) uParts.push(`#e1596b 0% ${(urgentActive/activeTotal)*100}%`);
-    if (normalActive > 0) uParts.push(`#8d97ac ${(urgentActive/activeTotal)*100}% 100%`);
-  }
-  document.getElementById("urgentDonut").style.background = uParts.length ? `conic-gradient(${uParts.join(",")})` : "#262f3d";
-  document.getElementById("urgentDonutTotal").textContent = activeTotal;
-  document.getElementById("urgentLegend").innerHTML = `
-    <div class="legend-item"><span class="legend-dot" style="background:#e1596b;"></span>Urgent<b>${urgentActive}</b></div>
-    <div class="legend-item"><span class="legend-dot" style="background:#8d97ac;"></span>Normal<b>${normalActive}</b></div>`;
-
-  // distribuție tip acțiune (active)
-  const typeMap = {};
-  rows.forEach(r => { if (r.stadiu !== "Rezolvat" && r.tipActiune && r.tipActiune !== "—") typeMap[r.tipActiune] = (typeMap[r.tipActiune]||0)+1; });
-  const typeEntries = Object.entries(typeMap).sort((a,b)=>b[1]-a[1]);
-  const maxType = Math.max(1, ...typeEntries.map(([,v])=>v));
-  document.getElementById("typeBars").innerHTML = typeEntries.length ? typeEntries.map(([name,v],i) => `
-    <div class="bar-row bar-row-sm">
-      <div class="bar-label">${escapeHTML(name)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(10,(v/maxType)*100)}%; background:${TYPE_COLORS[i%TYPE_COLORS.length]};">${v}</div></div>
-      <div class="bar-count"></div>
-    </div>`).join("") : `<div class="empty" style="padding:6px 0;">Nicio acțiune activă cu tip completat.</div>`;
-
-  // distribuție familie rulment (active)
-  const familyMap = {};
-  rows.forEach(r => { if (r.stadiu !== "Rezolvat" && r.familieRulment && r.familieRulment !== "—") familyMap[r.familieRulment] = (familyMap[r.familieRulment]||0)+1; });
-  const familyEntries = Object.entries(familyMap).sort((a,b)=>b[1]-a[1]);
-  const maxFamily = Math.max(1, ...familyEntries.map(([,v])=>v));
-  document.getElementById("familyBars").innerHTML = familyEntries.length ? familyEntries.map(([name,v],i) => `
-    <div class="bar-row bar-row-sm">
-      <div class="bar-label">${escapeHTML(name)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(10,(v/maxFamily)*100)}%; background:${TYPE_COLORS[(i+3)%TYPE_COLORS.length]};">${v}</div></div>
-      <div class="bar-count"></div>
-    </div>`).join("") : `<div class="empty" style="padding:6px 0;">Nicio acțiune activă cu familie completată.</div>`;
-
-  // top familie / top comandă montaj (active)
-  if (familyEntries.length) {
-    document.getElementById("statTopFamily").textContent = familyEntries[0][1];
-    document.getElementById("statTopFamilyTitle").textContent = familyEntries[0][0];
-    document.getElementById("statTopFamilyTitle").title = familyEntries[0][0];
-  } else {
-    document.getElementById("statTopFamily").textContent = "—";
-    document.getElementById("statTopFamilyTitle").textContent = "—";
-  }
-  const orderMap = {};
-  rows.forEach(r => { if (r.stadiu !== "Rezolvat" && r.comandaMontaj) orderMap[r.comandaMontaj] = (orderMap[r.comandaMontaj]||0)+1; });
-  const orderEntries = Object.entries(orderMap).sort((a,b)=>b[1]-a[1]);
-  if (orderEntries.length && orderEntries[0][1] > 1) {
-    document.getElementById("statTopOrder").textContent = orderEntries[0][1];
-    document.getElementById("statTopOrderTitle").textContent = orderEntries[0][0];
-    document.getElementById("statTopOrderTitle").title = orderEntries[0][0] + " (click pentru a vedea acțiunile)";
-    document.getElementById("statTopOrderTitle").dataset.comanda = orderEntries[0][0];
-  } else {
-    document.getElementById("statTopOrder").textContent = "—";
-    document.getElementById("statTopOrderTitle").textContent = orderEntries.length ? "fiecare comandă are o singură restanță" : "—";
-    delete document.getElementById("statTopOrderTitle").dataset.comanda;
-  }
-
-  // client stacked chart (rosu = active, verde = rezolvate)
-  const clientMap = {};
-  rows.forEach(r => {
-    if (!clientMap[r.client]) clientMap[r.client] = { active: 0, rezolvat: 0, total: 0 };
-    if (r.stadiu === "Rezolvat") clientMap[r.client].rezolvat++; else clientMap[r.client].active++;
-    clientMap[r.client].total++;
-  });
-  const clientEntries = Object.entries(clientMap).sort((a,b)=>b[1].total-a[1].total);
-  const chartPanel = document.getElementById("chartPanel");
-  const chartArea = document.getElementById("chartArea");
-  if (clientEntries.length === 0) { chartPanel.style.display = "none"; }
-  else {
-    chartPanel.style.display = "";
-    const maxClient = Math.max(...clientEntries.map(([,v])=>v.total));
-    chartArea.innerHTML = clientEntries.map(([name,v]) => {
-      const width = Math.max(10, (v.total/maxClient)*100);
-      const activePct = (v.active/v.total)*100;
-      const rezolvatPct = (v.rezolvat/v.total)*100;
-      const segs = [
-        v.active > 0 ? `<div class="stacked-seg" style="width:${activePct}%; background:#e1596b; display:flex; align-items:center; justify-content:flex-end; padding-right:4px;"><span style="font-size:9px; font-weight:700; color:#0b0e14; font-family:'IBM Plex Mono',monospace;">${v.active}</span></div>` : "",
-        v.rezolvat > 0 ? `<div class="stacked-seg" style="width:${rezolvatPct}%; background:#43b8a6; display:flex; align-items:center; justify-content:flex-end; padding-right:4px;"><span style="font-size:9px; font-weight:700; color:#0b0e14; font-family:'IBM Plex Mono',monospace;">${v.rezolvat}</span></div>` : "",
-      ].join("");
-      return `<div class="bar-row bar-row-sm"><div class="bar-label">${escapeHTML(name)}</div><div class="stacked-track" style="width:${width}%;">${segs}</div><div class="bar-count">${v.total}</div></div>`;
-    }).join("");
-  }
-
-  // leaderboard responsabil
-  const respMap = {};
-  rows.forEach(r => { if (r.stadiu !== "Rezolvat") respMap[r.responsabil] = (respMap[r.responsabil]||0)+1; });
-  const respEntries = Object.entries(respMap).sort((a,b)=>b[1]-a[1]);
-  const leaderboardPanel = document.getElementById("leaderboardPanel");
-  const leaderboardArea = document.getElementById("leaderboardArea");
-  if (respEntries.length === 0) { leaderboardPanel.style.display = "none"; }
-  else {
-    leaderboardPanel.style.display = "";
-    const maxResp = Math.max(...respEntries.map(([,v])=>v));
-    leaderboardArea.innerHTML = respEntries.map(([name,v],i) => `
-      <div class="bar-row bar-row-sm resp-row${state.respFilter===name?' resp-active':''}${state.respFilter&&state.respFilter!==name?' resp-dim':''}" data-resp="${escapeHTML(name)}" title="Click: arată doar acțiunile lui ${escapeHTML(name)}"><div class="bar-label">${escapeHTML(name)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(10,(v/maxResp)*100)}%; background:${CLIENT_COLORS[i%CLIENT_COLORS.length]};">${v}</div></div><div class="bar-count"></div><span class="resp-pill-count" style="background:${CLIENT_COLORS[i%CLIENT_COLORS.length]};">${v}</span></div>`).join("");
-  }
-
-  // vechime medie pe client (active)
-  const clientAgeMap = {};
-  rows.forEach(r => {
-    if (r.stadiu === "Rezolvat" || !r.dataAdaugare) return;
-    if (!clientAgeMap[r.client]) clientAgeMap[r.client] = { sum: 0, n: 0 };
-    clientAgeMap[r.client].sum += ageDays(r.dataAdaugare);
-    clientAgeMap[r.client].n++;
-  });
-  const clientAgeEntries = Object.entries(clientAgeMap)
-    .map(([name, v]) => [name, Math.round(v.sum / v.n)])
-    .sort((a,b) => b[1]-a[1]);
-  const clientAgePanel = document.getElementById("clientAgePanel");
-  const clientAgeArea = document.getElementById("clientAgeArea");
-  if (clientAgeEntries.length === 0) { clientAgePanel.style.display = "none"; }
-  else {
-    clientAgePanel.style.display = "";
-    const maxClientAge = Math.max(1, ...clientAgeEntries.map(([,v])=>v));
-    clientAgeArea.innerHTML = clientAgeEntries.map(([name,v],i) => {
-      const color = v > 14 ? "#e1596b" : v > 7 ? "#e8a33d" : "#43b8a6";
-      return `<div class="bar-row bar-row-sm"><div class="bar-label">${escapeHTML(name)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(10,(v/maxClientAge)*100)}%; background:${color};">${v}${ziLabel(v)[0]}</div></div><div class="bar-count"></div></div>`;
-    }).join("");
-  }
-
-  // filtrare + sortare — doar acțiuni nerezolvate
-  const activeRows = rows.filter(r => r.stadiu !== "Rezolvat");
-  let filtered = activeRows.filter(r => {
-    const searchableText = [
-      r.actiune, r.client, r.responsabil, r.comandaMontaj, r.sapRulment, r.descRulment,
-      r.familieRulment, r.sapComponent, r.descComponent, r.tipComponent, r.comandaComponent,
-      r.tipActiune, r.stadiu, r.comentarii, r.no,
-    ].map(v => String(v ?? "")).join(" ").toLowerCase();
-    const matchesSearch = !state.search || searchableText.includes(state.search.toLowerCase());
-    const matchesStatus = state.statusFilter === "Toate" || r.stadiu === state.statusFilter;
-    const matchesUrgent = state.urgentFilter === "Toate" || r.urgent;
-    const matchesResp = !state.respFilter || r.responsabil === state.respFilter;
-    return matchesSearch && matchesStatus && matchesUrgent && matchesResp;
-  });
-  filtered.sort((a,b) => {
-    if (state.sortBy === "termen") { const da = daysUntil(a.dataPlanificata); const db = daysUntil(b.dataPlanificata); return (da ?? 999) - (db ?? 999); }
-    if (state.sortBy === "client") return a.client.localeCompare(b.client);
-    return 0;
-  });
-
-  document.body.classList.toggle("resp-focus", !!state.respFilter);
-  document.getElementById("listCount").textContent = `${filtered.length} din ${activeRows.length} active`;
-  const respChip = document.getElementById("respChip");
-  if (respChip) {
-    respChip.style.display = state.respFilter ? "inline-flex" : "none";
-    if (state.respFilter) respChip.querySelector(".chip-name").textContent = state.respFilter;
-  }
-  const list = document.getElementById("issueList");
-  list.innerHTML = filtered.length === 0 ? `<div class="empty">Nicio acțiune nu corespunde filtrelor curente.</div>` : filtered.map(r => issueRowHTML(r)).join("");
-  reapplyDetailsState(list);
-  filtered.forEach(r => refreshAttachList(String(r.no ?? r.actiune)));
-
-  const resolvedRows = rows.filter(r => r.stadiu === "Rezolvat");
-  const resolvedSection = document.getElementById("resolvedSection");
-  if (state.showResolved) {
-    resolvedSection.style.display = "";
-    document.getElementById("resolvedCount").textContent = `${resolvedRows.length} rezolvate`;
-    const resolvedList = document.getElementById("resolvedList");
-    resolvedList.innerHTML = resolvedRows.length === 0 ? `<div class="empty">Nicio acțiune rezolvată încă.</div>` : resolvedRows.map(r => issueRowHTML(r, true)).join("");
-    reapplyDetailsState(resolvedList);
-    resolvedRows.forEach(r => refreshAttachList(String(r.no ?? r.actiune)));
-  } else {
-    resolvedSection.style.display = "none";
-  }
-}
-
-const errorBanner = document.getElementById("errorBanner");
-const sourceLabel = document.getElementById("sourceLabel");
-const liveDot = document.getElementById("liveDot");
-const refreshBtn = document.getElementById("refreshBtn");
-
-// Mapare intre numele coloanelor din foaia "Lists" si id-ul <datalist> corespunzator din formular.
-// Listele vin de la server (/api/lists): valorile din config.json + cele deja folosite.
-const LISTS_SHEET_NAME = "Lists";
-const LIST_FIELD_MAP = {
-  "tip actiune": "dlTipActiune",
-  "tip acțiune": "dlTipActiune",
-  "client": "dlClient",
-  "responsabil": "dlResponsabil",
-  "familie rulment": "dlFamilie",
-  "familie": "dlFamilie",
-  "tip component": "dlTipComponent",
-};
-
-async function updateFormLists() {
-  let lists;
-  try {
-    const res = await fetch(`${LISTS_API_URL}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return;
-    lists = (await res.json()).lists || {};
-  } catch (e) { return; }
-  Object.keys(lists).forEach((rawHeader) => {
-    const key = String(rawHeader || "").trim().toLowerCase();
-    const datalistId = LIST_FIELD_MAP[key];
-    if (!datalistId) return;
-    const values = [];
-    for (const item of lists[rawHeader]) {
-      const v = String(item ?? "").trim();
-      if (v && !values.includes(v)) values.push(v);
-    }
-    const el = document.getElementById(datalistId);
-    if (el) el.innerHTML = values.map(v => `<option value="${escapeHTML(v)}"></option>`).join("");
-  });
-}
-
-async function loadFromServer(isManual) {  if (isManual) refreshBtn.classList.add("spinning");
-  try {
-    const res = await fetch(`${EXCEL_FILE_URL}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    state.rows = rowsFromSheet(data.rows || []);
-    updateFormLists();
-    errorBanner.style.display = "none";
-    liveDot.style.background = "var(--teal)";
-    const now = new Date();
-    sourceLabel.textContent = `actualizat ${now.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}`;
-    render();
-    refreshTicker();
-  } catch (err) {
-    liveDot.style.background = "var(--coral)";
-    errorBanner.textContent = `Nu am putut citi acțiunile din baza de date (${err.message}). Verifică dacă server.py rulează.`;
-    errorBanner.style.display = "block";
-  } finally {
-    if (isManual) setTimeout(() => refreshBtn.classList.remove("spinning"), 400);
-  }
-}
-
-function scrollToCardById(id) {
-  state.search = "";
-  document.getElementById("searchInput").value = "";
-  document.getElementById("clearSearchBtn").style.display = "none";
-  state.statusFilter = "Toate";
-  document.getElementById("statusFilter").value = "Toate";
-  state.urgentFilter = "Toate";
-  document.getElementById("urgentFilter").value = "Toate";
-  state.respFilter = null;
-  render();
-  requestAnimationFrame(() => {
-    const card = document.querySelector(`.issue-card[data-print-id="${CSS.escape(id)}"]`);
-    if (!card) return;
-    card.scrollIntoView({ behavior: "smooth", block: "center" });
-    card.classList.add("highlight-flash");
-    setTimeout(() => card.classList.remove("highlight-flash"), 3000);
-  });
-}
-
-function scrollToComanda(comanda) {
-  state.search = comanda;
-  document.getElementById("searchInput").value = comanda;
-  document.getElementById("clearSearchBtn").style.display = comanda ? "inline-flex" : "none";
-  state.statusFilter = "Toate";
-  document.getElementById("statusFilter").value = "Toate";
-  state.urgentFilter = "Toate";
-  document.getElementById("urgentFilter").value = "Toate";
-  state.respFilter = null;
-  render();
-  requestAnimationFrame(() => {
-    document.querySelector(".list-header")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-}
-
-document.addEventListener("click", (e) => {
-  if (e.target.closest("#respChip")) { state.respFilter = null; render(); return; }
-  const respRow = e.target.closest(".resp-row");
-  if (respRow) {
-    const name = respRow.dataset.resp;
-    state.respFilter = state.respFilter === name ? null : name;
-    render();
-    // header-ul se restrânge în modul focus, deci lista începe imediat sub el
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
-    return;
-  }
-  const oldestLink = e.target.closest("#statOldestTitle");
-  if (oldestLink && oldestLink.dataset.printId) { scrollToCardById(oldestLink.dataset.printId); return; }
-  const orderLink = e.target.closest("#statTopOrderTitle");
-  if (orderLink && orderLink.dataset.comanda) { scrollToComanda(orderLink.dataset.comanda); return; }
+$("kpi").addEventListener("click", e => {
+  const b = e.target.closest("button[data-kpi]"); if (!b) return;
+  st.kpi = st.kpi === b.dataset.kpi ? null : b.dataset.kpi;
+  if (st.kpi === "inchise30") $("fStadiu").value = "toate";
+  deseneaza();
 });
 
-document.getElementById("searchInput").addEventListener("input", (e) => {
-  state.search = e.target.value;
-  document.getElementById("clearSearchBtn").style.display = e.target.value ? "inline-flex" : "none";
-  render();
-});
-document.getElementById("clearSearchBtn").addEventListener("click", () => {
-  const input = document.getElementById("searchInput");
-  input.value = "";
-  state.search = "";
-  document.getElementById("clearSearchBtn").style.display = "none";
-  render();
-  input.focus();
-});
-document.getElementById("statusFilter").addEventListener("change", (e) => { state.statusFilter = e.target.value; render(); });
-document.getElementById("urgentFilter").addEventListener("change", (e) => { state.urgentFilter = e.target.value; render(); });
-document.getElementById("sortBtn").addEventListener("click", () => {
-  state.sortBy = state.sortBy === "termen" ? "client" : "termen";
-  document.getElementById("sortLabel").textContent = state.sortBy === "termen" ? "Termen" : "Client";
-  render();
-});
-document.getElementById("printAllBtn").addEventListener("click", printAllVisible);
-
-// ---------- Adaugă acțiune nouă (scrie într-o coadă CSV, importată apoi de un script) ----------
-const PENDING_CSV_NAME = "pending_new_actions.csv";
-const PENDING_CSV_HEADERS = ["Data adaugare","SAP id Rulment","Descriere Rulment","Familie Rulment","Comanda Montaj","Client","SAP id Component","Descriere Component","Tip component","Comanda Component","Qty","Actiune","Tip Actiune","Responsabil","Data Planificata","Urgent Client","Comentarii"];
-let pendingDirHandle = null;
-
-function csvEscape(v) {
-  v = String(v ?? "");
-  if (v.includes(",") || v.includes('"') || v.includes("\n")) return '"' + v.replace(/"/g, '""') + '"';
-  return v;
-}
-
-async function getPendingDirHandle() {
-  if (pendingDirHandle) return pendingDirHandle;
-  if (!("showDirectoryPicker" in window)) return null;
-  try {
-    const idbReq = indexedDB.open("pdTrackerFS", 1);
-    const db = await new Promise((resolve, reject) => {
-      idbReq.onupgradeneeded = () => idbReq.result.createObjectStore("handles");
-      idbReq.onsuccess = () => resolve(idbReq.result);
-      idbReq.onerror = () => reject(idbReq.error);
-    });
-    const tx = db.transaction("handles", "readonly");
-    const stored = await new Promise((resolve) => {
-      const req = tx.objectStore("handles").get("dir");
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
-    });
-    if (stored) {
-      const perm = await stored.queryPermission({ mode: "readwrite" });
-      if (perm === "granted") { pendingDirHandle = stored; return stored; }
-      const req = await stored.requestPermission({ mode: "readwrite" });
-      if (req === "granted") { pendingDirHandle = stored; return stored; }
+/* ---------- lista ---------- */
+function filtrate() {
+  const q = $("fCauta").value.trim().toLowerCase();
+  const fs = $("fStadiu").value, fp = $("fPrioritate").value, fm = $("fMasina").value, fr = $("fResp").value;
+  const prag = new Date(st.azi + "T00:00:00"); prag.setDate(prag.getDate() - 30);
+  return st.actiuni.filter(a => {
+    if (fs === "active" && a.stadiu === "Închis") return false;
+    if (fs !== "active" && fs !== "toate" && a.stadiu !== fs) return false;
+    if (fp && a.prioritate !== fp) return false;
+    if (fm && a.masina !== fm) return false;
+    if (fr && a.responsabil !== fr) return false;
+    switch (st.kpi) {
+      case "deschis": if (a.stadiu !== "Deschis") return false; break;
+      case "lucru": if (a.stadiu !== "În lucru") return false; break;
+      case "intarziate": if (!(zileRamase(a) < 0)) return false; break;
+      case "urgente": if (a.stadiu === "Închis" || a.prioritate !== "Urgentă") return false; break;
+      case "inchise30": if (!(a.stadiu === "Închis" && a.data_inchidere && new Date(a.data_inchidere + "T00:00:00") >= prag)) return false; break;
     }
-    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
-    const tx2 = db.transaction("handles", "readwrite");
-    tx2.objectStore("handles").put(handle, "dir");
-    pendingDirHandle = handle;
-    return handle;
-  } catch (err) {
-    console.warn("Nu am putut obține acces la folder:", err);
-    return null;
-  }
+    if (q) {
+      const text = [a.nr, a.masina, a.reper, a.comanda, a.client, a.problema, a.actiune, a.responsabil].join(" ").toLowerCase();
+      if (!q.split(/\s+/).every(t => text.includes(t))) return false;
+    }
+    return true;
+  });
 }
+function compara(a, b) {
+  const { k, dir } = st.sortare;
+  let x, y;
+  if (k === "prioritate") { x = ORDINE_PR[a.prioritate]; y = ORDINE_PR[b.prioritate]; }
+  else if (k === "stadiu") { x = ORDINE_ST[a.stadiu]; y = ORDINE_ST[b.stadiu]; }
+  else if (k === "nr") { x = a.nr; y = b.nr; }
+  else if (k === "termen") {
+    // inchise la final, fara termen dupa cele cu termen
+    x = (a.stadiu === "Închis" ? "2" : a.termen ? "0" : "1") + (a.termen || ""); y = (b.stadiu === "Închis" ? "2" : b.termen ? "0" : "1") + (b.termen || "");
+  } else { x = String(a[k] || "").toLowerCase(); y = String(b[k] || "").toLowerCase(); }
+  if (x < y) return -dir; if (x > y) return dir;
+  return (ORDINE_PR[a.prioritate] - ORDINE_PR[b.prioritate]) || (a.nr - b.nr);
+}
+function badgeStadiu(s) { return `<span class="badge ${s === "Închis" ? "b-inchis" : s === "În lucru" ? "b-lucru" : "b-deschis"}">${esc(s)}</span>`; }
+function badgePr(p) {
+  if (p === "Urgentă") return `<span class="badge b-urgenta">▲ Urgentă</span>`;
+  if (p === "Ridicată") return `<span class="badge b-ridicata">△ Ridicată</span>`;
+  return `<span class="badge b-normala">Normală</span>`;
+}
+function celulaTermen(a) {
+  if (!a.termen) return `<span class="secundar">—</span>`;
+  const z = zileRamase(a);
+  let txt = "", cls = "";
+  if (a.stadiu === "Închis") txt = a.data_inchidere ? "închis " + ro(a.data_inchidere) : "";
+  else if (z < 0) { txt = `întârziat ${-z} ${-z === 1 ? "zi" : "zile"}`; cls = "intarziat"; }
+  else if (z === 0) { txt = "azi"; cls = "aproape"; }
+  else if (z <= 2) { txt = `în ${z} ${z === 1 ? "zi" : "zile"}`; cls = "aproape"; }
+  else txt = `în ${z} zile`;
+  return `<span class="termen">${ro(a.termen)}<span class="zile ${cls || "secundar"}">${txt}</span></span>`;
+}
+function deseneaza() {
+  deseneazaKpi();
+  $("antet").innerHTML = COLOANE.map(c => c.t ? `<th data-k="${c.k}" class="${st.sortare.k === c.k ? "sortat" : ""}">${c.t}<span class="sageata">${st.sortare.k === c.k ? (st.sortare.dir > 0 ? "↑" : "↓") : "↕"}</span></th>` : `<th></th>`).join("");
+  const rand = filtrate().sort(compara);
+  $("contor").textContent = `${rand.length} din ${st.actiuni.length} acțiuni`;
+  $("gol").classList.toggle("ascuns", rand.length > 0);
+  $("corp").innerHTML = rand.map(a => `<tr data-nr="${a.nr}" class="${st.selectat === a.nr ? "selectat" : ""}">
+    <td class="c-nr nr">#${a.nr}</td>
+    <td class="c-pr">${badgePr(a.prioritate)}</td>
+    <td class="c-masina"><b>${esc(a.masina)}</b>${a.client ? `<div class="secundar">${esc(a.client)}</div>` : ""}</td>
+    <td class="c-reper">${esc(a.reper) || '<span class="secundar">—</span>'}${a.comanda ? `<div class="secundar">${esc(a.comanda)}</div>` : ""}</td>
+    <td class="c-txt"><div class="problema text-2">${esc(a.problema)}</div><div class="actiune-txt text-2">→ ${esc(a.actiune)}</div></td>
+    <td class="c-resp">${esc(a.responsabil)}</td>
+    <td class="c-termen">${celulaTermen(a)}</td>
+    <td class="c-stadiu">${badgeStadiu(a.stadiu)}</td>
+    <td class="c-ico icoane">${a.comentarii ? `<span title="comentarii">💬 ${a.comentarii}</span>` : ""}${a.atasamente ? `<span title="atașamente">📎 ${a.atasamente}</span>` : ""}</td>
+  </tr>`).join("");
+}
+$("antet").addEventListener("click", e => {
+  const th = e.target.closest("th[data-k]"); if (!th) return;
+  const k = th.dataset.k;
+  st.sortare = st.sortare.k === k ? { k, dir: -st.sortare.dir } : { k, dir: 1 };
+  deseneaza();
+});
+["fCauta", "fStadiu", "fPrioritate", "fMasina", "fResp"].forEach(id => $(id).addEventListener("input", deseneaza));
+$("corp").addEventListener("click", e => { const tr = e.target.closest("tr[data-nr]"); if (tr) deschideActiune(+tr.dataset.nr); });
 
-async function appendToPendingCsv(rowValues) {
-  const dir = await getPendingDirHandle();
-  if (!dir) return { ok: false, reason: "no-fs-api" };
-  try {
-    let fileHandle;
+/* ---------- editor (cod personal) ---------- */
+function zonaEditor() {
+  $("zonaEditor").innerHTML = st.editor
+    ? `<span class="editor-chip" title="Autentificat ca editor">✓ ${esc(st.editor.nume)}<button id="btnIesire" title="Ieșire">✕</button></span>`
+    : `<button class="btn" id="btnIntra">Autentificare</button>`;
+}
+function iesire() { st.editor = null; try { sessionStorage.removeItem("grEditor"); } catch (e) {} zonaEditor(); }
+$("zonaEditor").addEventListener("click", e => {
+  if (e.target.closest("#btnIesire")) { iesire(); toast("Te-ai deconectat."); if (st.selectat !== null) deschideActiune(st.selectat); }
+  if (e.target.closest("#btnIntra")) cereCod();
+});
+function cereCod() {
+  return new Promise(rezolva => {
+    const dlg = $("dlgCod"); $("inCod").value = ""; $("codMesaj").className = "mesaj";
+    dlg.showModal(); $("inCod").focus();
+    const laClick = async (e) => {
+      e.preventDefault();
+      try {
+        const r = await fetch("api/cod", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cod: $("inCod").value }) });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.eroare || "Cod incorect.");
+        st.editor = { cod: $("inCod").value, nume: j.nume };
+        try { sessionStorage.setItem("grEditor", JSON.stringify(st.editor)); } catch (e2) {}
+        zonaEditor(); dlg.close("ok"); toast("Bun venit, " + j.nume + "!");
+      } catch (err) { $("codMesaj").textContent = err.message; $("codMesaj").className = "mesaj err"; }
+    };
+    $("btnCodOk").onclick = laClick;
+    dlg.onclose = () => rezolva(!!st.editor);
+  });
+}
+async function asiguraEditor() { return st.editor ? true : await cereCod(); }
+
+/* ---------- panou lateral ---------- */
+function deschidePanou() { $("panou").classList.add("deschis"); $("voal").classList.add("deschis"); $("panou").setAttribute("aria-hidden", "false"); }
+function inchidePanou() {
+  $("panou").classList.remove("deschis"); $("voal").classList.remove("deschis"); $("panou").setAttribute("aria-hidden", "true");
+  st.selectat = null; deseneaza();
+}
+$("pInchide").addEventListener("click", inchidePanou);
+$("voal").addEventListener("click", inchidePanou);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("panou").classList.contains("deschis") && !$("dlgCod").open) inchidePanou(); });
+
+function campuriFormular(a, blocat) {
+  const dis = blocat ? "disabled" : "";
+  const sel = (k, vals) => `<select id="f_${k}" ${dis}>${vals.map(v => `<option ${a[k] === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
+  const inp = (k, list, tip) => `<input id="f_${k}" ${tip ? `type="${tip}"` : ""} value="${esc(a[k] || "")}" ${list ? `list="${list}"` : ""} ${dis} autocomplete="off">`;
+  return `<div class="formular">
+    <div class="camp"><label>Mașină / Linie <span class="obl">*</span></label>${inp("masina", "dlMasina")}</div>
+    <div class="camp"><label>Reper (cod inel)</label>${inp("reper", "dlReper")}</div>
+    <div class="camp"><label>Comandă</label>${inp("comanda")}</div>
+    <div class="camp"><label>Client</label>${inp("client", "dlClient")}</div>
+    <div class="camp lat"><label>Problemă <span class="obl">*</span></label><textarea id="f_problema" ${dis}>${esc(a.problema || "")}</textarea></div>
+    <div class="camp lat"><label>Acțiune <span class="obl">*</span></label><textarea id="f_actiune" ${dis}>${esc(a.actiune || "")}</textarea></div>
+    <div class="camp"><label>Responsabil <span class="obl">*</span></label>${inp("responsabil", "dlResponsabil")}</div>
+    <div class="camp"><label>Termen</label>${inp("termen", null, "date")}</div>
+    <div class="camp"><label>Stadiu</label>${sel("stadiu", ["Deschis", "În lucru", "Închis"])}</div>
+    <div class="camp"><label>Prioritate</label>${sel("prioritate", ["Normală", "Ridicată", "Urgentă"])}</div>
+  </div>`;
+}
+function citesteFormular() {
+  const d = {};
+  for (const k of ["masina", "reper", "comanda", "client", "problema", "actiune", "responsabil", "termen", "stadiu", "prioritate"]) d[k] = $("f_" + k).value.trim();
+  return d;
+}
+function mesaj(t, ok) { const m = $("pMesaj"); m.textContent = t; m.className = "mesaj " + (ok ? "ok" : "err"); }
+
+function actiuneNoua() {
+  st.selectat = null;
+  $("pTitlu").textContent = "Acțiune nouă";
+  const implicit = { stadiu: "Deschis", prioritate: "Normală", termen: (() => { const d = new Date(st.azi + "T00:00:00"); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })() };
+  $("pContinut").innerHTML = (st.editor ? "" : `<div class="nota-blocat">Vei fi rugat să introduci codul personal la salvare.</div>`) +
+    campuriFormular(implicit, false) +
+    `<div class="camp" style="margin-top:10px"><label>Comentariu (opțional)</label><textarea id="f_comentariu"></textarea></div><div class="mesaj" id="pMesaj"></div>`;
+  $("pSubsol").innerHTML = `<button class="btn primar" id="pSalveaza">Salvează acțiunea</button><button class="btn" id="pAnuleaza">Anulează</button>`;
+  $("pAnuleaza").onclick = inchidePanou;
+  $("pSalveaza").onclick = async () => {
+    if (!(await asiguraEditor())) return;
+    const btn = $("pSalveaza"); btn.disabled = true;
     try {
-      fileHandle = await dir.getFileHandle(PENDING_CSV_NAME, { create: false });
-    } catch {
-      fileHandle = await dir.getFileHandle(PENDING_CSV_NAME, { create: true });
-    }
-    const file = await fileHandle.getFile();
-    let existingText = await file.text();
-    if (!existingText || !existingText.trim()) {
-      existingText = PENDING_CSV_HEADERS.map(csvEscape).join(",") + "\r\n";
-    } else if (!existingText.endsWith("\n")) {
-      existingText += "\r\n";
-    }
-    const newLine = rowValues.map(csvEscape).join(",") + "\r\n";
-    const writable = await fileHandle.createWritable();
-    await writable.write(existingText + newLine);
-    await writable.close();
-    return { ok: true };
-  } catch (err) {
-    console.warn("Eroare la scriere CSV:", err);
-    return { ok: false, reason: "write-error", error: err };
-  }
-}
-
-function openAddActionModal() {
-  editModalCardKey = null;
-  document.getElementById("addActionModalTitle").textContent = "Acțiune nouă";
-  document.getElementById("submitAddActionBtn").textContent = "Salvează acțiunea";
-  document.getElementById("addActionResult").innerHTML = "";
-  document.getElementById("addActionModal").style.display = "flex";
-  const today = new Date().toISOString().slice(0,10);
-  document.getElementById("naDataPlanificata").value = today;
-  document.getElementById("naStadiu").value = "Deschis";
-}
-function closeAddActionModal() { document.getElementById("addActionModal").style.display = "none"; editModalCardKey = null; }
-
-let editModalCardKey = null;
-
-function openEditModal(cardKey) {
-  const row = state.rows.find(r => String(r.no ?? r.actiune) === cardKey);
-  if (!row) { alert("Nu am găsit acțiunea în datele curente."); return; }
-  editModalCardKey = cardKey;
-
-  document.getElementById("addActionModalTitle").textContent = `Editează acțiunea #${row.no ?? ""}`;
-  document.getElementById("submitAddActionBtn").textContent = "Salvează modificările";
-  document.getElementById("naClient").value = row.client === "Necunoscut" ? "" : (row.client || "");
-  document.getElementById("naResponsabil").value = row.responsabil === "Nealocat" ? "" : (row.responsabil || "");
-  document.getElementById("naActiune").value = row.actiune === "Fără titlu" ? "" : (row.actiune || "");
-  document.getElementById("naTipActiune").value = row.tipActiune === "—" ? "" : (row.tipActiune || "");
-  document.getElementById("naSapRulment").value = row.sapRulment || "";
-  document.getElementById("naDescRulment").value = row.descRulment || "";
-  document.getElementById("naFamilie").value = row.familieRulment || "";
-  document.getElementById("naComandaMontaj").value = row.comandaMontaj || "";
-  document.getElementById("naSapComponent").value = row.sapComponent || "";
-  document.getElementById("naDescComponent").value = row.descComponent || "";
-  document.getElementById("naTipComponent").value = row.tipComponent || "";
-  document.getElementById("naComandaComponent").value = row.comandaComponent || "";
-  document.getElementById("naQty").value = row.qty || "";
-  document.getElementById("naDataPlanificata").value = row.dataPlanificata ? new Date(row.dataPlanificata).toISOString().slice(0,10) : "";
-  document.getElementById("naStadiu").value = row.stadiu || "Deschis";
-  document.getElementById("naUrgent").value = row.urgent ? "Da" : "Nu";
-  document.getElementById("naComentarii").value = "";
-  document.getElementById("naPin").value = "";
-  document.getElementById("addActionResult").innerHTML = "";
-  document.getElementById("addActionModal").style.display = "flex";
-}
-
-document.getElementById("addActionBtn").addEventListener("click", openAddActionModal);
-document.getElementById("closeAddActionBtn").addEventListener("click", closeAddActionModal);
-document.getElementById("cancelAddActionBtn").addEventListener("click", closeAddActionModal);
-// Fereastra NU se mai închide la click în afara ei - doar din ✕, "Anulează" sau după salvare.
-
-async function tryDirectListener(payload) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    const res = await fetch(ACTION_LISTENER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) return { ok: false };
-    const json = await res.json();
-    return json.ok ? { ok: true, no: json.no } : { ok: false };
-  } catch (err) {
-    return { ok: false };
-  }
-}
-
-async function deleteAction(cardKey, label) {
-  const confirmed = confirm(`Sigur vrei să ștergi definitiv acțiunea #${cardKey}${label ? " - " + label : ""}?\n\nAceastă acțiune NU poate fi anulată.`);
-  if (!confirmed) return;
-
-  const pin = prompt("Introdu codul tău personal pentru a confirma ștergerea:");
-  if (pin === null) return;
-  if (!pin) { alert("Codul este obligatoriu pentru a șterge o acțiune."); return; }
-
-  const statusEl = document.getElementById(`attachStatus-${cardKey}`);
-  if (statusEl) { statusEl.className = "attach-status"; statusEl.textContent = "Se șterge…"; }
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    const deleteUrl = ACTION_LISTENER_URL.replace(/\/?$/, "/") + "delete";
-    const res = await fetch(deleteUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: LISTENER_SOURCE, no: cardKey, pin }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    const json = await res.json();
-
-    if (res.ok && json.ok) {
-      loadFromServer(false);
-    } else if (res.status === 403) {
-      alert("Cod incorect. Acțiunea nu a fost ștearsă.");
-    } else if (res.status === 404) {
-      alert("Nu am găsit această acțiune în baza de date (poate a fost deja ștearsă sau modificată).");
-      loadFromServer(false);
-    } else {
-      alert(`Nu am putut șterge acțiunea: ${json.error || "eroare necunoscută"}`);
-    }
-  } catch (err) {
-    alert("Nu am putut contacta ascultătorul. Verifică dacă server.py rulează.");
-  }
-}
-
-async function submitEditAction() {
-  const cardKey = editModalCardKey;
-  const client = document.getElementById("naClient").value.trim();
-  const responsabil = document.getElementById("naResponsabil").value.trim();
-  const actiune = document.getElementById("naActiune").value.trim();
-  const dataPlanRaw = document.getElementById("naDataPlanificata").value;
-  const pin = document.getElementById("naPin").value;
-  const resultEl = document.getElementById("addActionResult");
-
-  if (!client || !responsabil || !actiune || !dataPlanRaw) {
-    resultEl.innerHTML = `<div class="modal-result-error">Completează Client, Responsabil, Acțiune și Data planificată.</div>`;
-    return;
-  }
-  if (!pin) {
-    resultEl.innerHTML = `<div class="modal-result-error">Introdu codul tău personal.</div>`;
-    return;
-  }
-
-  const payload = {
-    source: LISTENER_SOURCE,
-    no: cardKey,
-    client,
-    responsabil,
-    actiune,
-    tipActiune: document.getElementById("naTipActiune").value.trim(),
-    sapRulment: document.getElementById("naSapRulment").value.trim(),
-    descRulment: document.getElementById("naDescRulment").value.trim(),
-    familie: document.getElementById("naFamilie").value.trim(),
-    comandaMontaj: document.getElementById("naComandaMontaj").value.trim(),
-    sapComponent: document.getElementById("naSapComponent").value.trim(),
-    descComponent: document.getElementById("naDescComponent").value.trim(),
-    tipComponent: document.getElementById("naTipComponent").value.trim(),
-    comandaComponent: document.getElementById("naComandaComponent").value.trim(),
-    qty: document.getElementById("naQty").value.trim(),
-    dataPlanificata: dataPlanRaw.split("-").reverse().join("."),
-    stadiu: document.getElementById("naStadiu").value,
-    urgent: document.getElementById("naUrgent").value,
-    comentarii: document.getElementById("naComentarii").value.trim(),
-    pin,
+      const j = await api("api/actiuni", { ...citesteFormular(), comentariu: $("f_comentariu").value });
+      toast(`Acțiunea #${j.nr} a fost salvată.`);
+      await incarca(); deschideActiune(j.nr);
+    } catch (e) { mesaj(e.message, false); btn.disabled = false; }
   };
+  deschidePanou(); $("f_masina").focus();
+}
+$("btnNou").addEventListener("click", actiuneNoua);
 
-  const btn = document.getElementById("submitAddActionBtn");
-  btn.disabled = true;
-  btn.textContent = "Se salvează…";
-  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se salvează în baza de date…</div>`;
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    const editUrl = ACTION_LISTENER_URL.replace(/\/?$/, "/") + "edit";
-    const res = await fetch(editUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    const json = await res.json();
-
-    btn.disabled = false;
-    btn.textContent = "Salvează modificările";
-
-    if (res.ok && json.ok) {
-      resultEl.innerHTML = `<div class="modal-result-ok">Modificări salvate! Se reîmprospătează dashboard-ul…</div>`;
-      setTimeout(() => { closeAddActionModal(); loadFromServer(false); }, 1200);
-    } else if (res.status === 403) {
-      resultEl.innerHTML = `<div class="modal-result-error">Cod incorect.</div>`;
-    } else {
-      resultEl.innerHTML = `<div class="modal-result-error">Eroare: ${json.error || "necunoscută"}. Verifică dacă server.py rulează.</div>`;
-    }
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "Salvează modificările";
-    resultEl.innerHTML = `<div class="modal-result-error">Nu am putut contacta ascultătorul. Verifică dacă server.py rulează.</div>`;
-  }
+const NUME_CAMP = { masina: "Mașină", reper: "Reper", comanda: "Comandă", client: "Client", problema: "Problemă", actiune: "Acțiune", responsabil: "Responsabil", termen: "Termen", stadiu: "Stadiu", prioritate: "Prioritate", data_inchidere: "Data închidere" };
+function textIstoric(h) {
+  const d = h.detalii || {};
+  if (h.operatie === "modificare") return Object.entries(d).filter(([k]) => NUME_CAMP[k] && k !== "data_inchidere").map(([k, v]) => `${NUME_CAMP[k]}: „${esc(k === "termen" ? ro(v.din) : v.din || "—")}” → „${esc(k === "termen" ? ro(v.in) : v.in || "—")}”`).join("; ") || "modificare";
+  if (h.operatie === "atașament") return `a atașat ${esc(d.fisier)}`;
+  return esc(h.operatie);
 }
 
-document.getElementById("submitAddActionBtn").addEventListener("click", async () => {
-  if (editModalCardKey) { await submitEditAction(); return; }
-  const client = document.getElementById("naClient").value.trim();
-  const responsabil = document.getElementById("naResponsabil").value.trim();
-  const actiune = document.getElementById("naActiune").value.trim();
-  const dataPlanRaw = document.getElementById("naDataPlanificata").value;
-  const pin = document.getElementById("naPin").value;
-  const resultEl = document.getElementById("addActionResult");
+async function deschideActiune(nr) {
+  st.selectat = nr; deseneaza();
+  let j;
+  try { j = await api(`api/actiuni/${nr}?t=${Date.now()}`); }
+  catch (e) { toast(e.message); return; }
+  const a = j.actiune, blocat = !st.editor;
+  $("pTitlu").innerHTML = `<span class="nr">#${a.nr}</span> ${esc(a.masina)}`;
+  $("pContinut").innerHTML = `
+    <div class="meta">Adăugată ${ro(a.data)} de ${esc(a.creat_de || "—")}${a.modificat_la ? ` · modificată ${ro(a.modificat_la.slice(0, 10))} ${a.modificat_la.slice(11, 16)}` : ""} · ${badgeStadiu(a.stadiu)} ${badgePr(a.prioritate)}</div>
+    ${blocat ? `<div class="nota-blocat">Doar citire. <a href="#" id="lnkIntra">Autentifică-te</a> ca să modifici.</div>` : ""}
+    ${campuriFormular(a, blocat)}
+    <div class="mesaj" id="pMesaj"></div>
+    <div class="sectiune"><h3>Comentarii <span class="nr-mic">${j.comentarii.length}</span></h3>
+      ${j.comentarii.map(c => `<div class="coment"><div class="cine"><b>${esc(c.autor)}</b> · ${ro(c.la.slice(0, 10))} ${c.la.slice(11, 16)}</div><div class="txt">${esc(c.text)}</div></div>`).join("") || `<div class="secundar" style="margin-bottom:8px">Niciun comentariu.</div>`}
+      <div class="adauga-com"><textarea id="txtCom" placeholder="Scrie un comentariu…"></textarea><button class="btn" id="btnCom">Trimite</button></div>
+    </div>
+    <div class="sectiune"><h3>Atașamente <span class="nr-mic">${j.atasamente.length}</span></h3>
+      <div class="atas">${j.atasamente.map(f => `<a href="atasamente/${a.nr}/${encodeURIComponent(f)}" target="_blank" rel="noopener" title="${esc(f)}">📎 ${esc(f)}</a>`).join("") || `<span class="secundar">Niciun fișier.</span>`}</div>
+      <button class="btn mic" id="btnAtas">+ Atașează fișier</button><input type="file" id="inFisier" class="ascuns">
+    </div>
+    <div class="sectiune istoric"><h3>Istoric</h3><ul>
+      ${j.istoric.map(h => `<li><span class="cand">${ro(h.la.slice(0, 10))} ${h.la.slice(11, 16)}</span> · <b>${esc(h.autor)}</b> — ${textIstoric(h)}</li>`).join("")}
+    </ul></div>`;
+  $("pSubsol").innerHTML = blocat
+    ? `<button class="btn primar" id="pIntra">Autentificare pentru modificare</button>`
+    : `<button class="btn primar" id="pSalveaza">Salvează modificările</button>
+       ${a.stadiu !== "Închis" ? `<button class="btn" id="pInchideAct">✓ Închide acțiunea</button>` : `<button class="btn" id="pRedeschide">Redeschide</button>`}
+       <span style="flex:1"></span><button class="btn pericol" id="pSterge">Șterge</button>`;
 
-  if (!client || !responsabil || !actiune || !dataPlanRaw) {
-    resultEl.innerHTML = `<div class="modal-result-error">Completează Client, Responsabil, Acțiune și Data planificată.</div>`;
-    return;
-  }
-  if (!pin) {
-    resultEl.innerHTML = `<div class="modal-result-error">Introdu codul tău personal.</div>`;
-    return;
-  }
-
-  const todayIso = new Date().toISOString().slice(0,10);
-  const dataPlanFormatted = dataPlanRaw.split("-").reverse().join(".");
-  const todayFormatted = todayIso.split("-").reverse().join(".");
-
-  const formFields = {
-    source: LISTENER_SOURCE,
-    sapRulment: document.getElementById("naSapRulment").value.trim(),
-    descRulment: document.getElementById("naDescRulment").value.trim(),
-    familie: document.getElementById("naFamilie").value.trim(),
-    comandaMontaj: document.getElementById("naComandaMontaj").value.trim(),
-    client,
-    sapComponent: document.getElementById("naSapComponent").value.trim(),
-    descComponent: document.getElementById("naDescComponent").value.trim(),
-    tipComponent: document.getElementById("naTipComponent").value.trim(),
-    comandaComponent: document.getElementById("naComandaComponent").value.trim(),
-    qty: document.getElementById("naQty").value.trim(),
-    actiune,
-    tipActiune: document.getElementById("naTipActiune").value.trim(),
-    responsabil,
-    dataPlanificata: dataPlanFormatted,
-    dataAdaugare: todayFormatted,
-    urgent: document.getElementById("naUrgent").value,
-    comentarii: document.getElementById("naComentarii").value.trim(),
-    pin,
+  const reintra = async () => { if (await cereCod()) deschideActiune(nr); };
+  $("lnkIntra")?.addEventListener("click", e => { e.preventDefault(); reintra(); });
+  $("pIntra")?.addEventListener("click", reintra);
+  const salveaza = async (extra) => {
+    try {
+      await api(`api/actiuni/${nr}`, { ...citesteFormular(), ...extra });
+      toast("Salvat."); await incarca(); deschideActiune(nr);
+    } catch (e) { mesaj(e.message, false); }
   };
-
-  const rowValues = [
-    todayFormatted, formFields.sapRulment, formFields.descRulment, formFields.familie,
-    formFields.comandaMontaj, client, formFields.sapComponent, formFields.descComponent,
-    formFields.tipComponent, formFields.comandaComponent, formFields.qty, actiune,
-    formFields.tipActiune, responsabil, dataPlanFormatted, formFields.urgent, formFields.comentarii,
-  ];
-
-  const btn = document.getElementById("submitAddActionBtn");
-  btn.disabled = true;
-  btn.textContent = "Se salvează…";
-  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se salvează în baza de date…</div>`;
-
-  // 1) salveaza direct in baza de date, prin server.py
-  const direct = await tryDirectListener(formFields);
-  if (direct.ok) {
-    btn.disabled = false;
-    btn.textContent = "Salvează acțiunea";
-    resultEl.innerHTML = `<div class="modal-result-ok">Salvat în baza de date! Nr. ${direct.no}.</div>`;
-    ["naClient","naResponsabil","naActiune","naTipActiune","naSapRulment","naDescRulment","naFamilie","naComandaMontaj","naSapComponent","naDescComponent","naTipComponent","naComandaComponent","naQty","naComentarii","naPin"].forEach(id => document.getElementById(id).value = "");
-    return;
-  }
-
-  // 2) daca ascultatorul nu raspunde, incearca coada CSV (File System Access API)
-  const res = await appendToPendingCsv(rowValues);
-
-  btn.disabled = false;
-  btn.textContent = "Salvează acțiunea";
-
-  if (res.ok) {
-    resultEl.innerHTML = `<div class="modal-result-ok">Ascultătorul direct nu a răspuns, dar am salvat în coadă. Se importă pe server cu: python server.py --import-csv pending_new_actions.csv</div>`;
-    ["naClient","naResponsabil","naActiune","naTipActiune","naSapRulment","naDescRulment","naFamilie","naComandaMontaj","naSapComponent","naDescComponent","naTipComponent","naComandaComponent","naQty","naComentarii","naPin"].forEach(id => document.getElementById(id).value = "");
-  } else {
-    const csvLine = rowValues.map(csvEscape).join(",");
-    resultEl.innerHTML = `
-      <div class="modal-result-error">Nu am putut scrie nici direct, nici în coadă (verifică dacă server.py rulează). Copiază rândul de mai jos și adaugă-l la finalul „${PENDING_CSV_NAME}":</div>
-      <textarea class="modal-fallback-text" id="fallbackCsvLine" rows="3" readonly>${csvLine}</textarea>
-      <button type="button" class="modal-btn-primary" id="copyFallbackBtn" style="margin-top:8px;">Copiază rândul</button>`;
-    document.getElementById("copyFallbackBtn").addEventListener("click", () => {
-      const ta = document.getElementById("fallbackCsvLine");
-      ta.focus();
-      ta.select();
-      let copied = false;
-      try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
-      const cbtn = document.getElementById("copyFallbackBtn");
-      cbtn.textContent = copied ? "Copiat ✓" : "Nu am putut copia — selectează manual";
-      setTimeout(() => { cbtn.textContent = "Copiază rândul"; }, 2000);
-    });
-  }
-});
-
-refreshBtn.addEventListener("click", () => loadFromServer(true));
-
-document.getElementById("toggleResolvedBtn").addEventListener("click", () => {
-  state.showResolved = !state.showResolved;
-  document.getElementById("toggleResolvedLabel").textContent = state.showResolved ? "Ascunde rezolvate" : "Arată rezolvate";
-  render();
-});
-
-document.getElementById("toggleAnalyticsBtn").addEventListener("click", () => {
-  const section = document.getElementById("analyticsSection");
-  const btn = document.getElementById("toggleAnalyticsBtn");
-  const isHidden = section.style.display === "none";
-  section.style.display = isHidden ? "" : "none";
-  btn.classList.toggle("expanded", isHidden);
-  document.getElementById("toggleAnalyticsLabel").textContent = isHidden ? "Ascunde statistici" : "Statistici";
-});
-
-// ---------- Mod luminos (proiector) ----------
-function applyTheme(light) {
-  document.body.classList.toggle("light-mode", light);
-  const btn = document.getElementById("themeToggleBtn");
-  btn.classList.toggle("active", light);
-  btn.title = light ? "Revino la fundal întunecat" : "Fundal luminos (pentru proiector)";
-  try { localStorage.setItem("pdTrackerLightMode", light ? "1" : "0"); } catch (e) {}
-}
-document.getElementById("themeToggleBtn").addEventListener("click", () => {
-  applyTheme(!document.body.classList.contains("light-mode"));
-});
-(function () {
-  let saved = null;
-  try { saved = localStorage.getItem("pdTrackerLightMode"); } catch (e) {}
-  applyTheme(saved === "1");
-})();
-
-function tickClock() {
-  const now = new Date();
-  document.getElementById("clockTime").textContent = now.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  document.getElementById("clockDate").textContent = now.toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long" });
-}
-tickClock();
-setInterval(tickClock, 1000);
-
-loadFromServer(false);
-setInterval(() => loadFromServer(false), REFRESH_INTERVAL_MS);
-
-// ---------- Ticker: indicatorii acestui tracker (calculati din baza de date) ----------
-function buildTicker(items) {
-  const track = document.getElementById('tickerTrack');
-  if (!track) return;
-  track.innerHTML = items.map(it =>
-    `<div class="ticker-item"><span class="dot"></span><b>${it.label}</b><span class="${it.cls}">${it.value}</span></div>`
-  ).join('');
+  $("pSalveaza")?.addEventListener("click", () => salveaza({}));
+  $("pInchideAct")?.addEventListener("click", () => salveaza({ stadiu: "Închis" }));
+  $("pRedeschide")?.addEventListener("click", () => salveaza({ stadiu: "În lucru" }));
+  $("pSterge")?.addEventListener("click", async () => {
+    if (!confirm(`Ștergi definitiv acțiunea #${nr}? Rămâne doar în istoric și în backup.`)) return;
+    try { await api(`api/actiuni/${nr}/sterge`, {}); toast(`Acțiunea #${nr} a fost ștearsă.`); inchidePanou(); incarca(); }
+    catch (e) { mesaj(e.message, false); }
+  });
+  $("btnCom").addEventListener("click", async () => {
+    const t = $("txtCom").value.trim(); if (!t) return;
+    if (!(await asiguraEditor())) return;
+    try { await api(`api/actiuni/${nr}/comentariu`, { text: t }); await incarca(); deschideActiune(nr); }
+    catch (e) { toast(e.message); }
+  });
+  $("btnAtas").addEventListener("click", async () => { if (await asiguraEditor()) $("inFisier").click(); });
+  $("inFisier").addEventListener("change", async () => {
+    const f = $("inFisier").files[0]; if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { toast("Fișierul depășește 25 MB."); return; }
+    toast(`Se încarcă „${f.name}”…`);
+    const b64 = await new Promise((ok, err) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = err; r.readAsDataURL(f); });
+    try { await api(`api/actiuni/${nr}/atasament`, { nume: f.name, continut: b64 }); toast("Fișier atașat."); await incarca(); deschideActiune(nr); }
+    catch (e) { toast(e.message); }
+  });
+  deschidePanou();
 }
 
-function refreshTicker() {
-  const rows = state.rows || [];
-  const active = rows.filter(r => r.stadiu !== "Rezolvat");
-  const overdue = active.filter(r => daysUntilFrom(r.dataPlanificata, r.dataActuala) < 0).length;
-  const urgent = active.filter(r => r.urgent).length;
-  buildTicker([
-    { label: 'Active', value: String(active.length), cls: 'val-good' },
-    { label: 'Întârziate', value: String(overdue), cls: overdue ? 'val-warn' : 'val-good' },
-    { label: 'Urgent', value: String(urgent), cls: urgent ? 'val-warn' : 'val-good' },
-  ]);
+/* ---------- tema ---------- */
+function aplicaTema(t) {
+  if (t) document.documentElement.dataset.tema = t; else delete document.documentElement.dataset.tema;
 }
+let tema = null;
+try { tema = localStorage.getItem("grTema"); } catch (e) {}
+aplicaTema(tema);
+$("btnTema").addEventListener("click", () => {
+  const intunecatAcum = getComputedStyle(document.documentElement).colorScheme === "dark";
+  tema = intunecatAcum ? "luminos" : "intunecat";
+  aplicaTema(tema);
+  try { localStorage.setItem("grTema", tema); } catch (e) {}
+});
 
-refreshTicker();
+zonaEditor();
+incarca();
+setInterval(() => { if (!$("panou").classList.contains("deschis")) incarca(); }, REFRESH_MS);
 </script>
 </body>
 </html>

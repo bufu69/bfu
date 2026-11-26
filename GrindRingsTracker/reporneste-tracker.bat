@@ -1,5 +1,5 @@
 @echo off
-REM Opreste si porneste din nou Grind Rings Action Tracker (ex. dupa o actualizare).
+REM Opreste si porneste din nou Grind Rings Action Tracker.
 cd /d "%~dp0"
 net session >nul 2>&1
 if not %errorlevel%==0 (

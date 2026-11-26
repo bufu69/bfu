@@ -1,29 +1,15 @@
 #!/usr/bin/env python3
 """
-Grind Rings Action Tracker - server (port 8092), baza de date SQLite.
+Grind Rings Action Tracker - server (port 8092).
 
-Server complet independent: nu are nevoie de Excel, de internet sau de alt server.
-Doar Python 3 (fara pachete suplimentare).
+Server independent pentru actiunile de la rectificarea inelelor (grind rings).
+Date intr-o baza SQLite proprie (grind_rings.db). Doar Python 3, fara pachete externe.
 
-Pornire server:            python server.py
-Editori (coduri):          python server.py --editori              (sau editori.bat)
-Import din Excel:          python server.py --import-excel F.xlsx  (sau import-excel.bat)
-Import din CSV:            python server.py --import-csv F.csv
-Mailuri prin SMTP:         python server.py --trimite-mail         (sau mail.bat)
-Mailuri prin Outlook:      python server.py --raport-mail          (apoi trimite-outlook.ps1;
-                                                                     sau outlook-mailuri.bat)
-
-Rute HTTP:
-  GET  /                    dashboard-ul (index.html)
-  GET  /grafice             pagina cu grafice (grafice.html)
-  GET  /api/actions         actiunile (JSON)
-  GET  /api/lists           listele pentru formular
-  GET  /api/export.csv      export CSV
-  GET  /api/history[?no=]   istoricul modificarilor
-  POST /  /edit  /delete    adaugare / editare / stergere (cu cod de editor)
-  POST /upload              atasament
-  GET  /list?no=&source=    lista atasamentelor
-  GET  /attachments/<source>/<no>/<fisier>
+  python server.py                       porneste serverul
+  python server.py --editori             administrare editori (cod personal)
+  python server.py --import-excel F.xlsx importa actiuni din Excel
+  python server.py --trimite-mail        trimite mailurile prin SMTP (mail.ini)
+  python server.py --raport-mail         pregateste mailurile pentru Outlook (mail_out/)
 """
 
 import argparse
@@ -47,882 +33,842 @@ import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 from datetime import date, datetime, timedelta
-from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-# ======================= SETARI =======================
+# ============================ SETARI ============================
 APP_NAME = "Grind Rings Action Tracker"
 HOST = "0.0.0.0"
 PORT = 8092
-DATABASE = "grind_rings.db"          # baza de date (langa server.py)
-ATTACHMENTS_DIR = "attachments"      # atasamentele: attachments/<source>/<no>/<fisier>
-BACKUP_DIR = "backups"               # backup zilnic al bazei de date
-BACKUP_KEEP_DAYS = 30
-MAX_UPLOAD_MB = 25
-MAIL_INI = "mail.ini"                # setarile pentru mailuri (vezi mail-exemplu.ini)
-MAIL_OUT_DIR = "mail_out"            # unde se pregatesc mailurile pentru Outlook
-# ======================================================
+DATABASE = "grind_rings.db"
+ATASAMENTE_DIR = "atasamente"
+BACKUP_DIR = "backups"
+BACKUP_ZILE = 30
+MAX_ATASAMENT_MB = 25
+MAIL_INI = "mail.ini"
+MAIL_OUT_DIR = "mail_out"
+# ===============================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def here(p):
+def cale(p):
     return p if os.path.isabs(p) else os.path.join(BASE_DIR, p)
 
 
-DB_PATH = here(DATABASE)
+DB_PATH = cale(DATABASE)
 
-# (coloana in baza de date, cheia din formular, antetul trimis paginii / din Excel)
-COLUMNS = [
-    ("no", "no", "No"),
-    ("data_adaugare", "dataAdaugare", "Data adaugare"),
-    ("sap_rulment", "sapRulment", "SAP id Rulment"),
-    ("desc_rulment", "descRulment", "Descriere Rulment"),
-    ("familie_rulment", "familie", "Familie Rulment"),
-    ("comanda_montaj", "comandaMontaj", "Comanda Montaj"),
-    ("client", "client", "Client"),
-    ("sap_component", "sapComponent", "SAP id Component"),
-    ("desc_component", "descComponent", "Descriere Component"),
-    ("tip_component", "tipComponent", "Tip component"),
-    ("comanda_component", "comandaComponent", "Comanda Component"),
-    ("qty", "qty", "Qty"),
-    ("actiune", "actiune", "Actiune"),
-    ("tip_actiune", "tipActiune", "Tip Actiune"),
-    ("responsabil", "responsabil", "Responsabil"),
-    ("data_planificata", "dataPlanificata", "Data Planificata"),
-    ("data_finalizare", "dataActuala", "Data Finalizare"),
-    ("stadiu", "stadiu", "Stadiu"),
-    ("urgent", "urgent", "Urgent Client"),
-    ("comentarii", "comentarii", "Comentarii"),
+# Campurile unei actiuni: (cheie, eticheta)
+CAMPURI = [
+    ("nr", "Nr"),
+    ("data", "Data"),
+    ("masina", "Mașină / Linie"),
+    ("reper", "Reper"),
+    ("comanda", "Comandă"),
+    ("client", "Client"),
+    ("problema", "Problemă"),
+    ("actiune", "Acțiune"),
+    ("responsabil", "Responsabil"),
+    ("termen", "Termen"),
+    ("stadiu", "Stadiu"),
+    ("prioritate", "Prioritate"),
+    ("data_inchidere", "Data închidere"),
 ]
-TEXT_FIELDS = ["sapRulment", "descRulment", "familie", "comandaMontaj", "client",
-               "sapComponent", "descComponent", "tipComponent", "comandaComponent",
-               "qty", "actiune", "tipActiune", "responsabil"]
-KEY_TO_COL = {key: col for col, key, _ in COLUMNS}
-DATE_COLS = {"data_adaugare", "data_planificata", "data_finalizare"}
-LIST_COLUMNS = {"Client": "client", "Responsabil": "responsabil", "Tip Actiune": "tip_actiune",
-                "Familie Rulment": "familie_rulment", "Tip component": "tip_component"}
+EDITABILE = ["masina", "reper", "comanda", "client", "problema", "actiune",
+             "responsabil", "termen", "stadiu", "prioritate"]
+DATE = {"data", "termen", "data_inchidere"}
+STADII = ["Deschis", "În lucru", "Închis"]
+PRIORITATI = ["Normală", "Ridicată", "Urgentă"]
+LISTE = ["masina", "client", "responsabil", "reper"]
 
-# Recunoasterea coloanelor dupa nume (la fel ca in dashboard): exact, apoi partial.
-FIELD_KEYWORDS = {
-    "no": ["no", "nr", "nr crt", "numar"],
-    "data_adaugare": ["data adaugare", "data creare", "added"],
-    "sap_rulment": ["sap id rulment", "sap rulment"],
-    "desc_rulment": ["descriere rulment"],
-    "familie_rulment": ["familie rulment", "familie"],
-    "comanda_montaj": ["comanda montaj"],
+# recunoasterea coloanelor la importul din Excel (fara diacritice, litere mici)
+CUVINTE_CHEIE = {
+    "nr": ["nr", "nr.", "no", "numar", "id"],
+    "data": ["data", "data adaugare", "data deschidere", "data creare"],
+    "masina": ["masina", "masina / linie", "linie", "utilaj", "masina/linie"],
+    "reper": ["reper", "cod reper", "cod inel", "inel", "sap"],
+    "comanda": ["comanda", "nr comanda", "order"],
     "client": ["client"],
-    "sap_component": ["sap id component", "sap component"],
-    "desc_component": ["descriere component"],
-    "tip_component": ["tip component"],
-    "comanda_component": ["comanda component"],
-    "qty": ["qty", "cantitate"],
-    "tip_actiune": ["tip actiune"],
-    "actiune": ["actiune"],
-    "responsabil": ["responsabil"],
-    "data_planificata": ["data planificata"],
-    "data_finalizare": ["data finalizare", "data actuala"],
-    "stadiu": ["stadiu", "status"],
-    "comentarii": ["comentarii", "observatii", "note"],
-    "urgent": ["urgent client", "urgent"],
+    "problema": ["problema", "defect", "descriere problema"],
+    "actiune": ["actiune", "masura", "actiune corectiva"],
+    "responsabil": ["responsabil", "owner"],
+    "termen": ["termen", "data planificata", "deadline", "data limita"],
+    "stadiu": ["stadiu", "status", "stare"],
+    "prioritate": ["prioritate", "urgent", "urgenta"],
+    "data_inchidere": ["data inchidere", "data finalizare", "inchis la"],
+    "comentarii": ["comentarii", "comentariu", "observatii", "note"],
 }
 
 db_lock = threading.Lock()
 
 
-# ---------------------------------------------------------------- utilitare
-def norm(s):
+# =============================================================== utilitare
+def fara_diacritice(s):
     s = unicodedata.normalize("NFD", str(s if s is not None else ""))
     return "".join(c for c in s if unicodedata.category(c) != "Mn").lower().strip()
 
 
-def to_iso_date(s):
-    """'dd.mm.yyyy' / 'yyyy-mm-dd' / 'dd/mm/yyyy' / data / numar serial Excel -> 'yyyy-mm-dd'."""
-    if s is None or s == "":
+def iso(d):
+    """Orice forma de data -> 'aaaa-ll-zz' (sau None)."""
+    if d is None or d == "":
         return None
-    if isinstance(s, datetime):
-        return s.date().isoformat()
-    if isinstance(s, date):
-        return s.isoformat()
-    if isinstance(s, (int, float)) and 20000 < s < 80000:
-        return (datetime(1899, 12, 30) + timedelta(days=float(s))).date().isoformat()
-    s = str(s).strip()
-    if not s:
-        return None
-    s10 = s[:10]
-    for fmt, txt in (("%d.%m.%Y", s), ("%Y-%m-%d", s10), ("%d/%m/%Y", s), ("%m/%d/%Y", s)):
+    if isinstance(d, datetime):
+        return d.date().isoformat()
+    if isinstance(d, date):
+        return d.isoformat()
+    if isinstance(d, (int, float)) and 20000 < d < 80000:   # numar serial Excel
+        return (datetime(1899, 12, 30) + timedelta(days=float(d))).date().isoformat()
+    s = str(d).strip()
+    for fmt, txt in (("%Y-%m-%d", s[:10]), ("%d.%m.%Y", s), ("%d/%m/%Y", s), ("%d-%m-%Y", s)):
         try:
-            return datetime.strptime(txt, fmt).strftime("%Y-%m-%d")
+            return datetime.strptime(txt, fmt).date().isoformat()
         except ValueError:
             pass
-    return s
+    return None
 
 
-def fmt_ro(iso):
+def ro(d):
     try:
-        return datetime.strptime(str(iso)[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
+        return datetime.strptime(str(d)[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
     except (TypeError, ValueError):
-        return str(iso or "")
+        return ""
 
 
-def is_urgent(v):
-    return norm(v) in ("da", "yes", "true", "1", "x")
+def acum():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def normalize_stadiu(v):
-    s = norm(v)
-    if not s:
-        return "Deschis"
-    if re.search(r"rezolv|inchis|closed|done|finalizat", s):
-        return "Rezolvat"
-    if re.search(r"lucru|progress|wip|analiza", s):
+def stadiu_valid(v):
+    s = fara_diacritice(v)
+    if re.search(r"inchis|rezolvat|finalizat|done|closed", s):
+        return "Închis"
+    if re.search(r"lucru|progres|wip", s):
         return "În lucru"
     return "Deschis"
 
 
-def safe_part(s):
+def prioritate_valida(v):
+    s = fara_diacritice(v)
+    if re.search(r"urgent|^da$|^x$|^1$|critic", s):
+        return "Urgentă"
+    if re.search(r"ridicat|mare|high", s):
+        return "Ridicată"
+    return "Normală"
+
+
+def nume_sigur(s):
     s = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", str(s)).strip().strip(".")
-    return s or "_"
+    return s or "fisier"
 
 
-def stamp_comment(text, user):
-    text = str(text or "").strip()
-    if not text:
-        return ""
-    return f"[{datetime.now():%d.%m.%Y %H:%M} {user}] {text}"
+class Eroare(Exception):
+    def __init__(self, mesaj, status=400):
+        super().__init__(mesaj)
+        self.status = status
 
 
-def now_str():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def detect_columns(headers):
-    normed = [norm(h) for h in headers]
-    colmap, used = {}, set()
-    for exact in (True, False):
-        for field, kws in FIELD_KEYWORDS.items():
-            if field in colmap:
-                continue
-            for kw in kws:
-                idx = next((i for i, h in enumerate(normed)
-                            if h and i not in used and (h == kw if exact else kw in h)), None)
-                if idx is not None:
-                    colmap[field] = idx
-                    used.add(idx)
-                    break
-    return colmap
-
-
-# ---------------------------------------------------------------- baza de date
-def connect():
+# =============================================================== baza de date
+def db():
     conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
-def init_db():
-    cols = ",\n  ".join(f"{c} TEXT" for c, _, _ in COLUMNS if c != "no")
-    with connect() as conn:
-        conn.executescript(f"""
-CREATE TABLE IF NOT EXISTS actions (
-  no INTEGER PRIMARY KEY AUTOINCREMENT,
-  {cols},
-  created_by TEXT, created_at TEXT, updated_by TEXT, updated_at TEXT
+def creeaza_db():
+    with db() as c:
+        c.executescript("""
+CREATE TABLE IF NOT EXISTS actiuni (
+  nr INTEGER PRIMARY KEY AUTOINCREMENT,
+  data TEXT, masina TEXT, reper TEXT, comanda TEXT, client TEXT,
+  problema TEXT, actiune TEXT, responsabil TEXT, termen TEXT,
+  stadiu TEXT DEFAULT 'Deschis', prioritate TEXT DEFAULT 'Normală', data_inchidere TEXT,
+  creat_de TEXT, creat_la TEXT, modificat_de TEXT, modificat_la TEXT
 );
-CREATE TABLE IF NOT EXISTS history (
+CREATE TABLE IF NOT EXISTS comentarii (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  action_no INTEGER, operation TEXT, user TEXT, at TEXT, details TEXT
+  nr INTEGER REFERENCES actiuni(nr) ON DELETE CASCADE,
+  autor TEXT, la TEXT, text TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_history_no ON history(action_no);
+CREATE TABLE IF NOT EXISTS istoric (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nr INTEGER, operatie TEXT, autor TEXT, la TEXT, detalii TEXT
+);
 CREATE TABLE IF NOT EXISTS editori (
-  nume TEXT PRIMARY KEY, salt TEXT, pin_hash TEXT, creat_la TEXT
+  nume TEXT PRIMARY KEY, sare TEXT, hash TEXT, creat_la TEXT
 );
 CREATE TABLE IF NOT EXISTS liste (
   lista TEXT, valoare TEXT, PRIMARY KEY (lista, valoare)
 );
+CREATE INDEX IF NOT EXISTS ix_com_nr ON comentarii(nr);
+CREATE INDEX IF NOT EXISTS ix_ist_nr ON istoric(nr);
 """)
 
 
-def log_history(conn, no, operation, user, details):
-    conn.execute("INSERT INTO history(action_no, operation, user, at, details) VALUES (?,?,?,?,?)",
-                 (no, operation, user, now_str(), json.dumps(details, ensure_ascii=False)))
+def jurnal(c, nr, operatie, autor, detalii):
+    c.execute("INSERT INTO istoric(nr, operatie, autor, la, detalii) VALUES (?,?,?,?,?)",
+              (nr, operatie, autor, acum(), json.dumps(detalii, ensure_ascii=False)))
 
 
-def daily_backup():
+def backup_zilnic():
     if not os.path.exists(DB_PATH):
         return
-    bdir = here(BACKUP_DIR)
-    os.makedirs(bdir, exist_ok=True)
-    stem, ext = os.path.splitext(os.path.basename(DB_PATH))
-    target = os.path.join(bdir, f"{stem}_{date.today():%Y-%m-%d}{ext}")
-    if not os.path.exists(target):
-        with connect() as s, sqlite3.connect(target) as d:
-            s.backup(d)
-    olds = sorted(f for f in os.listdir(bdir) if f.startswith(stem + "_") and f.endswith(ext))
-    for f in olds[:-BACKUP_KEEP_DAYS] if BACKUP_KEEP_DAYS > 0 else []:
+    d = cale(BACKUP_DIR)
+    os.makedirs(d, exist_ok=True)
+    tinta = os.path.join(d, f"grind_rings_{date.today():%Y-%m-%d}.db")
+    if not os.path.exists(tinta):
+        with db() as sursa, sqlite3.connect(tinta) as dest:
+            sursa.backup(dest)
+    vechi = sorted(f for f in os.listdir(d) if re.fullmatch(r"grind_rings_\d{4}-\d\d-\d\d\.db", f))
+    for f in vechi[:-BACKUP_ZILE] if BACKUP_ZILE > 0 else []:
         try:
-            os.remove(os.path.join(bdir, f))
+            os.remove(os.path.join(d, f))
         except OSError:
             pass
 
 
-# ---------------------------------------------------------------- editori (coduri personale)
-def hash_pin(pin, salt):
-    return hashlib.pbkdf2_hmac("sha256", str(pin).encode(), bytes.fromhex(salt), 100_000).hex()
+# =============================================================== editori
+def _hash(cod, sare):
+    return hashlib.pbkdf2_hmac("sha256", str(cod).encode(), bytes.fromhex(sare), 120_000).hex()
 
 
-def check_pin(pin):
-    pin = str(pin or "").strip()
-    if not pin:
+def editor_dupa_cod(cod):
+    cod = str(cod or "").strip()
+    if not cod:
         return None
-    with connect() as conn:
-        for r in conn.execute("SELECT nume, salt, pin_hash FROM editori"):
-            if secrets.compare_digest(hash_pin(pin, r["salt"]), r["pin_hash"]):
+    with db() as c:
+        for r in c.execute("SELECT nume, sare, hash FROM editori"):
+            if secrets.compare_digest(_hash(cod, r["sare"]), r["hash"]):
                 return r["nume"]
     return None
 
 
-def set_editor(nume, pin):
-    salt = secrets.token_hex(16)
-    with connect() as conn:
-        for r in conn.execute("SELECT nume, salt, pin_hash FROM editori WHERE nume<>?", (nume,)):
-            if hash_pin(pin, r["salt"]) == r["pin_hash"]:
+def cere_editor(date_cerere):
+    nume = editor_dupa_cod(date_cerere.get("cod"))
+    if not nume:
+        raise Eroare("Cod incorect.", 403)
+    return nume
+
+
+def seteaza_editor(nume, cod):
+    nume, cod = nume.strip(), str(cod).strip()
+    if not nume or len(cod) < 4:
+        raise ValueError("Numele nu poate fi gol, iar codul trebuie sa aiba minim 4 caractere.")
+    with db() as c:
+        for r in c.execute("SELECT nume, sare, hash FROM editori WHERE nume<>?", (nume,)):
+            if _hash(cod, r["sare"]) == r["hash"]:
                 raise ValueError(f"Codul este deja folosit de {r['nume']}. Alege alt cod.")
-        conn.execute("INSERT OR REPLACE INTO editori(nume, salt, pin_hash, creat_la) VALUES (?,?,?,?)",
-                     (nume, salt, hash_pin(pin, salt), now_str()))
+        sare = secrets.token_hex(16)
+        c.execute("INSERT OR REPLACE INTO editori(nume, sare, hash, creat_la) VALUES (?,?,?,?)",
+                  (nume, sare, _hash(cod, sare), acum()))
 
 
-def list_editori():
-    with connect() as conn:
-        return [dict(r) for r in conn.execute("SELECT nume, creat_la FROM editori ORDER BY nume")]
+def lista_editori():
+    with db() as c:
+        return [dict(r) for r in c.execute("SELECT nume, creat_la FROM editori ORDER BY nume")]
 
 
-def delete_editor(nume):
-    with connect() as conn:
-        return conn.execute("DELETE FROM editori WHERE nume=?", (nume,)).rowcount > 0
-
-
-def editori_menu():
+def meniu_editori():
     while True:
-        eds = list_editori()
-        print(f"\n=== {APP_NAME} - editori ===")
-        if eds:
-            for i, e in enumerate(eds, 1):
-                print(f"  {i}. {e['nume']}   (din {e['creat_la'][:10]})")
-        else:
-            print("  (niciun editor - nimeni nu poate adauga/modifica actiuni)")
-        print("\n  1 = Adauga editor / schimba codul     2 = Sterge editor     0 = Iesire")
-        opt = input("Alege: ").strip()
+        eds = lista_editori()
+        print(f"\n===== {APP_NAME} - EDITORI =====")
+        for i, e in enumerate(eds, 1):
+            print(f"  {i}. {e['nume']}  (din {e['creat_la'][:10]})")
+        if not eds:
+            print("  (niciun editor - nimeni nu poate modifica actiunile)")
+        print("\n  1 = adauga editor / schimba codul   2 = sterge editor   0 = iesire")
+        opt = input("> ").strip()
         if opt == "1":
-            nume = input("Numele editorului (apare in comentarii): ").strip()
-            if not nume:
-                continue
-            pin = getpass.getpass("Codul personal (nu se afiseaza): ").strip()
-            pin2 = getpass.getpass("Repeta codul: ").strip()
-            if not pin or pin != pin2:
-                print("Codurile nu coincid sau sunt goale.")
+            nume = input("Nume (apare la comentarii si in istoric): ").strip()
+            cod = getpass.getpass("Cod personal (minim 4 caractere, nu se afiseaza): ")
+            if cod != getpass.getpass("Repeta codul: "):
+                print("Codurile nu coincid.")
                 continue
             try:
-                set_editor(nume, pin)
+                seteaza_editor(nume, cod)
                 print(f"OK - {nume} poate edita.")
             except ValueError as e:
                 print(e)
         elif opt == "2":
-            nume = input("Numele editorului de sters: ").strip()
-            print("Sters." if delete_editor(nume) else "Nu exista acest editor.")
-        elif opt == "0" or opt == "":
+            nume = input("Numele de sters: ").strip()
+            with db() as c:
+                n = c.execute("DELETE FROM editori WHERE nume=?", (nume,)).rowcount
+            print("Sters." if n else "Nu exista.")
+        elif opt in ("0", ""):
             return
 
 
-# ---------------------------------------------------------------- actiuni
-def field_values(data):
-    vals = {}
-    for key in TEXT_FIELDS:
-        if key in data:
-            vals[KEY_TO_COL[key]] = str(data.get(key) or "").strip()
-    if "dataPlanificata" in data:
-        vals["data_planificata"] = to_iso_date(data["dataPlanificata"])
-    if "urgent" in data:
-        vals["urgent"] = "Da" if is_urgent(data["urgent"]) else "Nu"
-    return vals
+# =============================================================== actiuni
+def curata(date_cerere):
+    """Pastreaza doar campurile editabile prezente si le normalizeaza."""
+    v = {}
+    for k in EDITABILE:
+        if k not in date_cerere:
+            continue
+        x = date_cerere.get(k)
+        if k == "termen":
+            v[k] = iso(x)
+        elif k == "stadiu":
+            v[k] = stadiu_valid(x)
+        elif k == "prioritate":
+            v[k] = prioritate_valida(x)
+        else:
+            v[k] = re.sub(r"\s+", " ", str(x or "")).strip()[:500] if k not in ("problema", "actiune") else str(x or "").strip()[:4000]
+    return v
 
 
-def insert_action(conn, vals, user, op="adaugare"):
-    vals = dict(vals)
-    vals.update(created_by=user, created_at=now_str(), updated_by=user, updated_at=now_str())
-    cur = conn.execute(f"INSERT INTO actions ({','.join(vals)}) VALUES ({','.join('?' * len(vals))})",
-                       list(vals.values()))
-    no = vals.get("no") or cur.lastrowid
-    log_history(conn, no, op, user, vals)
-    return no
+def rand_actiune(r, nr_com=0, nr_at=0):
+    d = {k: (r[k] if r[k] is not None else "") for k, _ in CAMPURI}
+    d.update(creat_de=r["creat_de"] or "", modificat_la=r["modificat_la"] or "",
+             comentarii=nr_com, atasamente=nr_at)
+    return d
 
 
-def add_action(data, user):
-    vals = field_values({"urgent": "Nu", **data})
-    vals["data_adaugare"] = to_iso_date(data.get("dataAdaugare")) or date.today().isoformat()
-    vals["stadiu"] = data.get("stadiu") or "Deschis"
-    vals["comentarii"] = stamp_comment(data.get("comentarii"), user)
+def toate_actiunile():
+    with db() as c:
+        com = dict(c.execute("SELECT nr, COUNT(*) FROM comentarii GROUP BY nr").fetchall())
+        rows = c.execute("SELECT * FROM actiuni ORDER BY nr DESC").fetchall()
+    return [rand_actiune(r, com.get(r["nr"], 0), len(lista_atasamente(r["nr"]))) for r in rows]
+
+
+def o_actiune(nr):
+    with db() as c:
+        r = c.execute("SELECT * FROM actiuni WHERE nr=?", (nr,)).fetchone()
+        if not r:
+            raise Eroare("Acțiunea nu există.", 404)
+        com = [dict(x) for x in c.execute("SELECT autor, la, text FROM comentarii WHERE nr=? ORDER BY id", (nr,))]
+        ist = [{**dict(x), "detalii": json.loads(x["detalii"] or "null")}
+               for x in c.execute("SELECT operatie, autor, la, detalii FROM istoric WHERE nr=? ORDER BY id DESC", (nr,))]
+    return {"actiune": rand_actiune(r, len(com), len(lista_atasamente(nr))),
+            "comentarii": com, "istoric": ist, "atasamente": lista_atasamente(nr)}
+
+
+def adauga(date_cerere, autor, c=None, op="adăugare"):
+    v = curata({"stadiu": "Deschis", "prioritate": "Normală", **date_cerere})
+    for obligatoriu in ("masina", "problema", "actiune", "responsabil"):
+        if not v.get(obligatoriu):
+            eticheta = dict(CAMPURI)[obligatoriu]
+            raise Eroare(f"Completează câmpul „{eticheta}”.")
+    v["data"] = iso(date_cerere.get("data")) or date.today().isoformat()
+    if v["stadiu"] == "Închis":
+        v["data_inchidere"] = iso(date_cerere.get("data_inchidere")) or date.today().isoformat()
+    if date_cerere.get("nr"):
+        v["nr"] = int(date_cerere["nr"])
+    v.update(creat_de=autor, creat_la=acum(), modificat_de=autor, modificat_la=acum())
+
+    def scrie(conn):
+        cur = conn.execute(f"INSERT INTO actiuni ({','.join(v)}) VALUES ({','.join('?' * len(v))})", list(v.values()))
+        nr = v.get("nr") or cur.lastrowid
+        text = str(date_cerere.get("comentariu") or "").strip()
+        if text:
+            conn.execute("INSERT INTO comentarii(nr, autor, la, text) VALUES (?,?,?,?)", (nr, autor, acum(), text))
+        jurnal(conn, nr, op, autor, {k: v[k] for k in v if k in dict(CAMPURI)})
+        return nr
+
+    if c is not None:
+        return scrie(c)
     with db_lock:
-        daily_backup()
-        with connect() as conn:
-            return insert_action(conn, vals, user)
+        backup_zilnic()
+        with db() as conn:
+            return scrie(conn)
 
 
-def get_action(conn, no):
-    try:
-        no = int(float(str(no).strip()))
-    except (TypeError, ValueError):
-        return None
-    return conn.execute("SELECT * FROM actions WHERE no=?", (no,)).fetchone()
-
-
-def edit_action(data, user):
+def modifica(nr, date_cerere, autor):
     with db_lock:
-        daily_backup()
-        with connect() as conn:
-            row = get_action(conn, data.get("no"))
-            if row is None:
-                return False
-            vals = field_values(data)
-            stadiu = data.get("stadiu")
-            if stadiu:
-                vals["stadiu"] = stadiu
-                if stadiu == "Rezolvat" and not row["data_finalizare"]:
-                    vals["data_finalizare"] = date.today().isoformat()
-                elif stadiu != "Rezolvat" and "rezolv" in norm(row["stadiu"]):
-                    vals["data_finalizare"] = None
-            new_comment = stamp_comment(data.get("comentarii"), user)
-            if new_comment:
-                old = (row["comentarii"] or "").strip()
-                vals["comentarii"] = f"{old}\n{new_comment}" if old else new_comment
-            changes = {k: {"inainte": row[k], "dupa": v} for k, v in vals.items() if row[k] != v}
-            vals.update(updated_by=user, updated_at=now_str())
-            conn.execute(f"UPDATE actions SET {','.join(f'{k}=?' for k in vals)} WHERE no=?",
-                         [*vals.values(), row["no"]])
-            log_history(conn, row["no"], "editare", user, changes)
-    return True
+        backup_zilnic()
+        with db() as c:
+            r = c.execute("SELECT * FROM actiuni WHERE nr=?", (nr,)).fetchone()
+            if not r:
+                raise Eroare("Acțiunea nu există.", 404)
+            v = curata(date_cerere)
+            for obligatoriu in ("masina", "problema", "actiune", "responsabil"):
+                if obligatoriu in v and not v[obligatoriu]:
+                    raise Eroare(f"Câmpul „{dict(CAMPURI)[obligatoriu]}” nu poate fi gol.")
+            if "stadiu" in v:
+                if v["stadiu"] == "Închis" and r["stadiu"] != "Închis":
+                    v["data_inchidere"] = date.today().isoformat()
+                elif v["stadiu"] != "Închis":
+                    v["data_inchidere"] = None
+            schimbari = {k: {"din": r[k], "in": x} for k, x in v.items() if (r[k] or None) != (x or None)}
+            if schimbari:
+                v.update(modificat_de=autor, modificat_la=acum())
+                c.execute(f"UPDATE actiuni SET {','.join(f'{k}=?' for k in v)} WHERE nr=?", [*v.values(), nr])
+                jurnal(c, nr, "modificare", autor, schimbari)
+            text = str(date_cerere.get("comentariu") or "").strip()
+            if text:
+                c.execute("INSERT INTO comentarii(nr, autor, la, text) VALUES (?,?,?,?)", (nr, autor, acum(), text))
+                c.execute("UPDATE actiuni SET modificat_de=?, modificat_la=? WHERE nr=?", (autor, acum(), nr))
 
 
-def delete_action(no, user):
+def comenteaza(nr, text, autor):
+    text = str(text or "").strip()
+    if not text:
+        raise Eroare("Comentariul e gol.")
+    with db_lock, db() as c:
+        if not c.execute("SELECT 1 FROM actiuni WHERE nr=?", (nr,)).fetchone():
+            raise Eroare("Acțiunea nu există.", 404)
+        c.execute("INSERT INTO comentarii(nr, autor, la, text) VALUES (?,?,?,?)", (nr, autor, acum(), text[:4000]))
+        c.execute("UPDATE actiuni SET modificat_de=?, modificat_la=? WHERE nr=?", (autor, acum(), nr))
+
+
+def sterge(nr, autor):
     with db_lock:
-        daily_backup()
-        with connect() as conn:
-            row = get_action(conn, no)
-            if row is None:
-                return False
-            conn.execute("DELETE FROM actions WHERE no=?", (row["no"],))
-            log_history(conn, row["no"], "stergere", user, dict(row))
-    return True
+        backup_zilnic()
+        with db() as c:
+            r = c.execute("SELECT * FROM actiuni WHERE nr=?", (nr,)).fetchone()
+            if not r:
+                raise Eroare("Acțiunea nu există.", 404)
+            com = [dict(x) for x in c.execute("SELECT autor, la, text FROM comentarii WHERE nr=?", (nr,))]
+            c.execute("DELETE FROM actiuni WHERE nr=?", (nr,))
+            jurnal(c, nr, "ștergere", autor, {"actiune": dict(r), "comentarii": com})
 
 
-def all_actions():
-    with connect() as conn:
-        rows = conn.execute("SELECT * FROM actions ORDER BY no").fetchall()
-    return [{h: ("" if r[c] is None else r[c]) for c, _, h in COLUMNS} for r in rows]
-
-
-def form_lists():
-    lists = {}
-    with connect() as conn:
-        for header, col in LIST_COLUMNS.items():
-            values = [v for (v,) in conn.execute("SELECT valoare FROM liste WHERE lista=? ORDER BY valoare", (header,))]
-            for (v,) in conn.execute(f"SELECT DISTINCT {col} FROM actions WHERE {col} IS NOT NULL AND {col}<>'' ORDER BY {col}"):
-                if v not in values:
-                    values.append(v)
-            lists[header] = values
-    return lists
+def liste():
+    rez = {}
+    with db() as c:
+        for k in LISTE:
+            vals = [x for (x,) in c.execute("SELECT valoare FROM liste WHERE lista=? ORDER BY valoare", (k,))]
+            for (x,) in c.execute(f"SELECT DISTINCT {k} FROM actiuni WHERE {k}<>'' ORDER BY {k}"):
+                if x not in vals:
+                    vals.append(x)
+            rez[k] = vals
+    rez["stadiu"], rez["prioritate"] = STADII, PRIORITATI
+    return rez
 
 
 def export_csv():
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    w.writerow([h for _, _, h in COLUMNS])
-    for item in all_actions():
-        w.writerow([item[h] for _, _, h in COLUMNS])
+    w.writerow([e for _, e in CAMPURI] + ["Comentarii"])
+    with db() as c:
+        for r in c.execute("SELECT * FROM actiuni ORDER BY nr"):
+            com = " | ".join(f"[{x['la'][:16]} {x['autor']}] {x['text']}"
+                             for x in c.execute("SELECT * FROM comentarii WHERE nr=? ORDER BY id", (r["nr"],)))
+            w.writerow([ro(r[k]) if k in DATE else (r[k] or "") for k, _ in CAMPURI] + [com])
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
-def history(no=None):
-    with connect() as conn:
-        if no:
-            rows = conn.execute("SELECT * FROM history WHERE action_no=? ORDER BY id DESC", (no,)).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM history ORDER BY id DESC LIMIT 500").fetchall()
-    return [{**dict(r), "details": json.loads(r["details"] or "null")} for r in rows]
+def istoric_general(limita=300):
+    with db() as c:
+        return [{**dict(x), "detalii": json.loads(x["detalii"] or "null")}
+                for x in c.execute("SELECT * FROM istoric ORDER BY id DESC LIMIT ?", (limita,))]
 
 
-# ---------------------------------------------------------------- import Excel / CSV
-def read_xlsx(path):
-    """Citeste un .xlsx/.xlsm fara pachete externe. Intoarce {nume_foaie: [[celule]]}."""
+# =============================================================== atasamente
+def dir_atasamente(nr):
+    return os.path.join(cale(ATASAMENTE_DIR), str(int(nr)))
+
+
+def lista_atasamente(nr):
+    d = dir_atasamente(nr)
+    return sorted(f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))) if os.path.isdir(d) else []
+
+
+def salveaza_atasament(nr, nume, continut_b64):
+    with db() as c:
+        if not c.execute("SELECT 1 FROM actiuni WHERE nr=?", (nr,)).fetchone():
+            raise Eroare("Acțiunea nu există.", 404)
+    brut = base64.b64decode(continut_b64 or "", validate=False)
+    if not brut:
+        raise Eroare("Fișier gol.")
+    if len(brut) > MAX_ATASAMENT_MB * 1024 * 1024:
+        raise Eroare(f"Fișierul depășește {MAX_ATASAMENT_MB} MB.")
+    d = dir_atasamente(nr)
+    os.makedirs(d, exist_ok=True)
+    nume = nume_sigur(os.path.basename(str(nume or "fisier")))
+    baza, ext = os.path.splitext(nume)
+    tinta, i = os.path.join(d, nume), 1
+    while os.path.exists(tinta):
+        tinta = os.path.join(d, f"{baza} ({i}){ext}")
+        i += 1
+    with open(tinta, "wb") as f:
+        f.write(brut)
+    return os.path.basename(tinta)
+
+
+# =============================================================== import Excel / CSV
+def citeste_xlsx(path):
+    """Citeste .xlsx/.xlsm fara pachete externe -> {foaie: [[valori]]}."""
     ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
           "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
     with zipfile.ZipFile(path) as z:
-        shared = []
+        comune = []
         if "xl/sharedStrings.xml" in z.namelist():
             for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall("m:si", ns):
-                shared.append("".join(t.text or "" for t in si.iter(f"{{{ns['m']}}}t")))
-        wb = ET.fromstring(z.read("xl/workbook.xml"))
-        rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
-        targets = {r.get("Id"): r.get("Target") for r in rels}
-        sheets = {}
-        for s in wb.find("m:sheets", ns):
-            target = targets[s.get(f"{{{ns['r']}}}id")].lstrip("/")
-            target = target if target.startswith("xl/") else "xl/" + target
-            rows = []
-            for row in ET.fromstring(z.read(target)).iter(f"{{{ns['m']}}}row"):
-                cells = {}
+                comune.append("".join(t.text or "" for t in si.iter(f"{{{ns['m']}}}t")))
+        rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))}
+        foi = {}
+        for s in ET.fromstring(z.read("xl/workbook.xml")).find("m:sheets", ns):
+            t = rels[s.get(f"{{{ns['r']}}}id")].lstrip("/")
+            t = t if t.startswith("xl/") else "xl/" + t
+            randuri = []
+            for row in ET.fromstring(z.read(t)).iter(f"{{{ns['m']}}}row"):
+                cel = {}
                 for c in row.findall("m:c", ns):
-                    ref = re.match(r"([A-Z]+)", c.get("r", "A")).group(1)
                     col = 0
-                    for ch in ref:
+                    for ch in re.match(r"[A-Z]+", c.get("r", "A")).group(0):
                         col = col * 26 + ord(ch) - 64
-                    t, v = c.get("t"), c.find("m:v", ns)
-                    if t == "s" and v is not None:
-                        val = shared[int(v.text)]
-                    elif t == "inlineStr":
+                    tip, v = c.get("t"), c.find("m:v", ns)
+                    if tip == "s" and v is not None:
+                        val = comune[int(v.text)]
+                    elif tip == "inlineStr":
                         val = "".join(x.text or "" for x in c.iter(f"{{{ns['m']}}}t"))
-                    elif t in ("str", "e"):
+                    elif tip in ("str", "e"):
                         val = v.text if v is not None else ""
-                    elif t == "b":
+                    elif tip == "b":
                         val = "Da" if v is not None and v.text == "1" else "Nu"
-                    elif v is not None and v.text is not None:
+                    elif v is not None and v.text:
                         f = float(v.text)
                         val = int(f) if f.is_integer() else f
                     else:
                         val = ""
-                    cells[col - 1] = val
-                rows.append([cells.get(i, "") for i in range(max(cells) + 1)] if cells else [])
-            sheets[s.get("name")] = rows
-        return sheets
+                    cel[col - 1] = val
+                randuri.append([cel.get(i, "") for i in range(max(cel) + 1)] if cel else [])
+            foi[s.get("name")] = randuri
+        return foi
 
 
-def import_rows(header, rows, user, sursa):
-    colmap = detect_columns(header)
-    if "actiune" not in colmap and "client" not in colmap:
-        raise ValueError("Nu am gasit coloanele Actiune/Client in antet.")
-    added = skipped = 0
+def harta_coloane(antet):
+    norm = [fara_diacritice(h) for h in antet]
+    harta, folosite = {}, set()
+    for exact in (True, False):
+        for camp, kws in CUVINTE_CHEIE.items():
+            if camp in harta:
+                continue
+            for kw in kws:
+                i = next((j for j, h in enumerate(norm) if h and j not in folosite
+                          and (h == kw if exact else (len(kw) > 3 and kw in h))), None)
+                if i is not None:
+                    harta[camp] = i
+                    folosite.add(i)
+                    break
+    return harta
+
+
+def importa_randuri(antet, randuri, sursa):
+    harta = harta_coloane(antet)
+    if "actiune" not in harta and "problema" not in harta:
+        raise SystemExit("Nu am găsit coloanele Acțiune / Problemă în primul rând al foii.")
+    adaugate = sarite = 0
     with db_lock:
-        daily_backup()
-        with connect() as conn:
-            for r in rows:
-                cell = lambda f: (r[colmap[f]] if f in colmap and colmap[f] < len(r) else "")
-                vals = {}
-                for col, _, _ in COLUMNS:
-                    v = cell(col)
-                    if col in DATE_COLS:
-                        v = to_iso_date(v)
-                    elif col == "no":
-                        try:
-                            v = int(float(v)) if str(v).strip() else None
-                        except ValueError:
-                            v = None
-                    else:
-                        v = "" if v is None else str(v).strip()
-                    vals[col] = v
-                if not any(vals[c] for c in ("actiune", "client", "comanda_montaj")):
+        backup_zilnic()
+        with db() as c:
+            for r in randuri:
+                val = lambda k: (r[harta[k]] if k in harta and harta[k] < len(r) else "")
+                d = {k: val(k) for k in CUVINTE_CHEIE}
+                if not str(d["actiune"]).strip() and not str(d["problema"]).strip():
                     continue
-                vals["stadiu"] = normalize_stadiu(vals.get("stadiu"))
-                vals["urgent"] = "Da" if is_urgent(vals.get("urgent")) else "Nu"
-                if not vals.get("data_adaugare"):
-                    vals["data_adaugare"] = date.today().isoformat()
-                if vals["no"] is None:
-                    vals.pop("no")
-                elif get_action(conn, vals["no"]) is not None:
-                    skipped += 1
+                for k in ("masina", "problema", "actiune", "responsabil"):
+                    if not str(d[k]).strip():
+                        d[k] = "—"
+                try:
+                    d["nr"] = int(float(d["nr"])) if str(d["nr"]).strip() else None
+                except ValueError:
+                    d["nr"] = None
+                if d["nr"] and c.execute("SELECT 1 FROM actiuni WHERE nr=?", (d["nr"],)).fetchone():
+                    sarite += 1
                     continue
-                no = insert_action(conn, vals, user, op=f"import {sursa}")
-                added += 1
-                print(f"  + #{no}: {vals.get('client', '')} - {vals.get('actiune', '')}")
-    return added, skipped
+                d["comentariu"] = d.pop("comentarii")
+                nr = adauga(d, f"import {sursa}", c=c, op=f"import {sursa}")
+                adaugate += 1
+                print(f"  + #{nr}: {d['masina']} - {str(d['actiune'])[:60]}")
+    return adaugate, sarite
 
 
-def import_excel(path, sheet=None):
-    sheets = read_xlsx(path)
-    if sheet:
-        name = sheet
-    else:
-        # foaia cu actiuni: prima care are coloana "Actiune" in antet
-        name = next((n for n, rows in sheets.items()
-                     if rows and "actiune" in detect_columns(rows[0])), None)
-    if not name or name not in sheets:
-        raise ValueError(f"Nu am gasit foaia cu actiuni. Foi disponibile: {', '.join(sheets)}")
-    rows = sheets[name]
-    print(f"Foaia '{name}': {len(rows) - 1} randuri")
-    added, skipped = import_rows(rows[0], rows[1:], "import Excel", "Excel")
-    # foaia "Lists" (optional): valorile pentru listele din formular
-    listsheet = next((n for n in sheets if norm(n) in ("lists", "liste")), None)
-    nliste = 0
-    if listsheet and sheets[listsheet]:
-        hdr = sheets[listsheet][0]
-        with connect() as conn:
-            for i, h in enumerate(hdr):
-                key = next((k for k in LIST_COLUMNS if norm(k) == norm(h) or norm(h) == norm(k).split()[0]), None)
-                if not key:
-                    continue
-                for row in sheets[listsheet][1:]:
-                    v = str(row[i]).strip() if i < len(row) else ""
-                    if v:
-                        nliste += conn.execute("INSERT OR IGNORE INTO liste(lista, valoare) VALUES (?,?)", (key, v)).rowcount
-    print(f"Gata: {added} actiuni importate, {skipped} sarite (numarul exista deja), {nliste} valori noi in liste.")
+def importa_excel(path, foaie=None):
+    foi = citeste_xlsx(path)
+    if not foaie:
+        foaie = next((n for n, rr in foi.items() if rr and {"actiune", "problema"} & set(harta_coloane(rr[0]))), None)
+    if not foaie or foaie not in foi:
+        raise SystemExit(f"Nu am găsit foaia cu acțiuni. Foi: {', '.join(foi)}")
+    rr = foi[foaie]
+    print(f"Foaia „{foaie}”: {max(len(rr) - 1, 0)} rânduri")
+    a, s = importa_randuri(rr[0], rr[1:], "Excel")
+    print(f"Gata: {a} acțiuni importate, {s} sărite (numărul există deja).")
 
 
-def import_csv(path):
+def importa_csv(path):
     with open(path, encoding="utf-8-sig", newline="") as f:
-        sample = f.read(4096)
+        prob = f.read(4096)
         f.seek(0)
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;") if sample else csv.excel
-        data = list(csv.reader(f, dialect=dialect))
-    if not data:
-        print("Fisier gol.")
-        return
-    added, skipped = import_rows(data[0], data[1:], "import CSV", "CSV")
-    done = path + f".importat_{datetime.now():%Y%m%d_%H%M%S}"
-    os.replace(path, done)
-    print(f"Gata: {added} actiuni importate, {skipped} sarite. Fisierul a fost redenumit in: {done}")
+        rr = list(csv.reader(f, csv.Sniffer().sniff(prob, delimiters=",;") if prob else csv.excel))
+    if rr:
+        a, s = importa_randuri(rr[0], rr[1:], "CSV")
+        print(f"Gata: {a} acțiuni importate, {s} sărite.")
 
 
-# ---------------------------------------------------------------- mailuri
-def load_mail_ini():
-    path = here(MAIL_INI)
-    if not os.path.exists(path):
-        raise SystemExit(f"Lipseste {MAIL_INI}. Copiaza mail-exemplu.ini in {MAIL_INI} si completeaza-l.")
+# =============================================================== mailuri
+def citeste_mail_ini():
+    p = cale(MAIL_INI)
+    if not os.path.exists(p):
+        raise SystemExit("Lipsește mail.ini. Copiază mail-exemplu.ini în mail.ini și completează-l.")
     cp = configparser.ConfigParser(interpolation=None)
     cp.optionxform = str
-    cp.read(path, encoding="utf-8")
+    cp.read(p, encoding="utf-8")
     return cp
 
 
-def build_mails(cp):
-    """Pregateste mailurile: cate unul pe responsabil (actiuni intarziate / aproape de termen / urgente)
-    + un rezumat. Intoarce lista de {to, cc, subject, html}."""
+def pregateste_mailuri(cp):
     g = cp["general"] if cp.has_section("general") else {}
     zile = int(g.get("zile_inainte_termen", "2") or 2)
-    url = g.get("link_dashboard", "").strip()
-    subiect = g.get("subiect", "Grind Rings - actiuni de urmarit").strip()
-    adrese = {norm(k): v.strip() for k, v in (cp["destinatari"].items() if cp.has_section("destinatari") else [])}
+    link = g.get("link_tracker", "").strip()
+    subiect = g.get("subiect", "Grind Rings - acțiuni de urmărit").strip()
     cc = g.get("cc", "").strip()
-    rezumat_catre = g.get("rezumat_catre", "").strip()
+    rezumat = g.get("rezumat_catre", "").strip()
+    adrese = {fara_diacritice(k): v.strip() for k, v in (cp["destinatari"].items() if cp.has_section("destinatari") else [])}
 
-    today = date.today()
-    per_resp, toate = {}, []
-    for a in all_actions():
-        if a["Stadiu"] == "Rezolvat":
+    azi = date.today()
+    pe_resp, toate = {}, []
+    for a in toate_actiunile():
+        if a["stadiu"] == "Închis":
             continue
-        try:
-            termen = datetime.strptime(str(a["Data Planificata"])[:10], "%Y-%m-%d").date()
-            zile_ramase = (termen - today).days
-        except ValueError:
-            zile_ramase = None
-        urgent = a["Urgent Client"] == "Da"
-        if not (urgent or (zile_ramase is not None and zile_ramase <= zile)):
+        t = iso(a["termen"])
+        zr = (date.fromisoformat(t) - azi).days if t else None
+        urg = a["prioritate"] == "Urgentă"
+        if not (urg or (zr is not None and zr <= zile)):
             continue
-        a = dict(a, _zile=zile_ramase, _urgent=urgent)
+        a = dict(a, _z=zr)
         toate.append(a)
-        per_resp.setdefault(a["Responsabil"] or "Nealocat", []).append(a)
+        pe_resp.setdefault(a["responsabil"] or "Nealocat", []).append(a)
 
     def tabel(items):
-        items = sorted(items, key=lambda x: (x["_zile"] if x["_zile"] is not None else 9999))
-        rows = []
-        for a in items:
-            if a["_zile"] is None:
-                st, col = "fără termen", "#8d97ac"
-            elif a["_zile"] < 0:
-                st, col = f"întârziată {-a['_zile']} zile", "#e1596b"
-            elif a["_zile"] == 0:
-                st, col = "termen azi", "#e8a33d"
-            else:
-                st, col = f"termen în {a['_zile']} zile", "#e8a33d"
-            urg = ' <b style="color:#e1596b">URGENT CLIENT</b>' if a["_urgent"] else ""
-            rows.append(
-                f"<tr><td>#{a['No']}</td><td>{html.escape(str(a['Client']))}</td>"
-                f"<td>{html.escape(str(a['Actiune']))}{urg}</td><td>{html.escape(str(a['Responsabil']))}</td>"
-                f"<td>{fmt_ro(a['Data Planificata'])}</td><td style=\"color:{col}\">{st}</td>"
-                f"<td>{html.escape(str(a['Stadiu']))}</td></tr>")
-        return ('<table cellpadding="6" cellspacing="0" border="1" style="border-collapse:collapse;'
-                'font-family:Segoe UI,Arial,sans-serif;font-size:13px;border-color:#ddd">'
-                '<tr style="background:#f2f4f7"><th>Nr</th><th>Client</th><th>Acțiune</th><th>Responsabil</th>'
-                '<th>Termen</th><th>Situație</th><th>Stadiu</th></tr>' + "".join(rows) + "</table>")
-
-    link = f'<p><a href="{html.escape(url)}">Deschide {APP_NAME}</a></p>' if url else ""
+        rand = []
+        for a in sorted(items, key=lambda x: x["_z"] if x["_z"] is not None else 9999):
+            z = a["_z"]
+            sit, cul = (("fără termen", "#667085") if z is None else
+                        (f"întârziată {-z} zile", "#c0392b") if z < 0 else
+                        ("termen azi", "#b7791f") if z == 0 else (f"în {z} zile", "#b7791f"))
+            pr = " <b style='color:#c0392b'>URGENT</b>" if a["prioritate"] == "Urgentă" else ""
+            rand.append(f"<tr><td>#{a['nr']}</td><td>{html.escape(a['masina'])}</td><td>{html.escape(a['reper'])}</td>"
+                        f"<td>{html.escape(a['problema'])}</td><td>{html.escape(a['actiune'])}{pr}</td>"
+                        f"<td>{html.escape(a['responsabil'])}</td><td>{ro(a['termen'])}</td>"
+                        f"<td style='color:{cul}'>{sit}</td></tr>")
+        return ("<table cellpadding='6' cellspacing='0' border='1' style='border-collapse:collapse;border-color:#d0d5dd;"
+                "font:13px Segoe UI,Arial,sans-serif'><tr style='background:#f2f4f7'><th>Nr</th><th>Mașină</th><th>Reper</th>"
+                "<th>Problemă</th><th>Acțiune</th><th>Responsabil</th><th>Termen</th><th>Situație</th></tr>"
+                + "".join(rand) + "</table>")
 
     def corp(titlu, items):
-        return (f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px">'
-                f"<p>{titlu}</p>{tabel(items)}{link}"
-                f'<p style="color:#888;font-size:12px">Mesaj automat {APP_NAME}, {today:%d.%m.%Y}.</p></div>')
+        l = f"<p><a href='{html.escape(link)}'>Deschide {APP_NAME}</a></p>" if link else ""
+        return (f"<div style='font:14px Segoe UI,Arial,sans-serif'><p>{titlu}</p>{tabel(items)}{l}"
+                f"<p style='color:#888;font-size:12px'>Mesaj automat {APP_NAME} – {azi:%d.%m.%Y}</p></div>")
 
-    mails = []
-    for resp, items in sorted(per_resp.items()):
-        to = adrese.get(norm(resp))
-        if not to:
-            print(f"  ! {resp}: nu are adresa in [destinatari] - apare doar in rezumat")
+    mailuri = []
+    for resp, items in sorted(pe_resp.items()):
+        catre = adrese.get(fara_diacritice(resp))
+        if not catre:
+            print(f"  ! {resp}: nu are adresă în [destinatari] – apare doar în rezumat")
             continue
-        mails.append({"to": to, "cc": cc, "subject": f"{subiect} ({len(items)})",
-                      "html": corp(f"Bună ziua, {html.escape(resp)}. Aveți {len(items)} acțiuni care necesită atenție:", items)})
-    if rezumat_catre and toate:
-        mails.append({"to": rezumat_catre, "cc": "", "subject": f"{subiect} - rezumat ({len(toate)})",
-                      "html": corp(f"Rezumat: {len(toate)} acțiuni întârziate, aproape de termen sau urgente.", toate)})
-    return mails
+        mailuri.append({"catre": catre, "cc": cc, "subiect": f"{subiect} ({len(items)})",
+                        "html": corp(f"Bună ziua, {html.escape(resp)}. Aveți {len(items)} acțiuni care cer atenție:", items)})
+    if rezumat and toate:
+        mailuri.append({"catre": rezumat, "cc": "", "subiect": f"{subiect} – rezumat ({len(toate)})",
+                        "html": corp(f"Rezumat: {len(toate)} acțiuni întârziate, aproape de termen sau urgente.", toate)})
+    return mailuri
 
 
 def raport_mail():
-    """Scrie mailurile in mail_out/ pentru trimite-outlook.ps1."""
-    mails = build_mails(load_mail_ini())
-    out = here(MAIL_OUT_DIR)
-    os.makedirs(out, exist_ok=True)
-    for f in os.listdir(out):
+    mailuri = pregateste_mailuri(citeste_mail_ini())
+    d = cale(MAIL_OUT_DIR)
+    os.makedirs(d, exist_ok=True)
+    for f in os.listdir(d):
         if f.endswith(".html") or f == "mailuri.json":
-            os.remove(os.path.join(out, f))
+            os.remove(os.path.join(d, f))
     index = []
-    for i, m in enumerate(mails, 1):
+    for i, m in enumerate(mailuri, 1):
         fn = f"mail_{i:02d}.html"
-        with open(os.path.join(out, fn), "w", encoding="utf-8") as f:
+        with open(os.path.join(d, fn), "w", encoding="utf-8") as f:
             f.write(m["html"])
-        index.append({"to": m["to"], "cc": m["cc"], "subject": m["subject"], "file": fn})
-    with open(os.path.join(out, "mailuri.json"), "w", encoding="utf-8") as f:
+        index.append({"catre": m["catre"], "cc": m["cc"], "subiect": m["subiect"], "fisier": fn})
+    with open(os.path.join(d, "mailuri.json"), "w", encoding="utf-8") as f:
         json.dump(index, f, ensure_ascii=False, indent=2)
-    print(f"{len(mails)} mailuri pregatite in {out}")
+    print(f"{len(mailuri)} mailuri pregătite în {d}")
 
 
-def trimite_mail_smtp():
-    cp = load_mail_ini()
+def trimite_mail():
+    cp = citeste_mail_ini()
     if not cp.has_section("smtp"):
-        raise SystemExit("Lipseste sectiunea [smtp] din mail.ini (sau foloseste outlook-mailuri.bat).")
+        raise SystemExit("Lipsește secțiunea [smtp] din mail.ini (sau folosește outlook-mailuri.bat).")
     s = cp["smtp"]
-    mails = build_mails(cp)
-    if not mails:
-        print("Nimic de trimis.")
-        return
+    mailuri = pregateste_mailuri(cp)
+    if not mailuri:
+        return print("Nimic de trimis.")
     port = int(s.get("port", "25") or 25)
-    secur = norm(s.get("securitate", "starttls"))
-    smtp = smtplib.SMTP_SSL(s["server"], port, timeout=30) if secur == "ssl" else smtplib.SMTP(s["server"], port, timeout=30)
-    with smtp:
-        if secur == "starttls":
-            smtp.starttls()
+    sec = fara_diacritice(s.get("securitate", "starttls"))
+    srv = smtplib.SMTP_SSL(s["server"], port, timeout=30) if sec == "ssl" else smtplib.SMTP(s["server"], port, timeout=30)
+    with srv:
+        if sec == "starttls":
+            srv.starttls()
         if s.get("utilizator", "").strip():
-            smtp.login(s["utilizator"].strip(), s.get("parola", ""))
-        for m in mails:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"], msg["From"], msg["To"] = m["subject"], s["de_la"].strip(), m["to"]
+            srv.login(s["utilizator"].strip(), s.get("parola", ""))
+        for m in mailuri:
+            msg = MIMEText(m["html"], "html", "utf-8")
+            msg["Subject"], msg["From"], msg["To"] = m["subiect"], s["de_la"].strip(), m["catre"]
             if m["cc"]:
                 msg["Cc"] = m["cc"]
-            msg.attach(MIMEText(m["html"], "html", "utf-8"))
-            to_all = [x.strip() for x in re.split(r"[;,]", f"{m['to']};{m['cc']}") if x.strip()]
-            smtp.sendmail(msg["From"], to_all, msg.as_string())
-            print(f"  trimis: {m['to']} - {m['subject']}")
-    print(f"{len(mails)} mailuri trimise.")
+            dest = [x.strip() for x in re.split(r"[;,]", f"{m['catre']};{m['cc']}") if x.strip()]
+            srv.sendmail(msg["From"], dest, msg.as_string())
+            print(f"  trimis: {m['catre']} – {m['subiect']}")
+    print(f"{len(mailuri)} mailuri trimise.")
 
 
-# ---------------------------------------------------------------- atasamente
-def attach_dir(source, no):
-    return os.path.join(here(ATTACHMENTS_DIR), safe_part(source or "grindrings"), safe_part(no))
+# =============================================================== HTTP
+PAGINI = {"/": "index.html", "/index.html": "index.html", "/grafice": "grafice.html", "/grafice.html": "grafice.html"}
 
 
-def list_attachments(source, no):
-    d = attach_dir(source, no)
-    return sorted(f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))) if os.path.isdir(d) else []
-
-
-def save_attachment(source, no, filename, content_b64):
-    raw = base64.b64decode(content_b64 or "", validate=False)
-    if len(raw) > MAX_UPLOAD_MB * 1024 * 1024:
-        raise ValueError(f"Fișierul depășește {MAX_UPLOAD_MB} MB.")
-    d = attach_dir(source, no)
-    os.makedirs(d, exist_ok=True)
-    name = safe_part(os.path.basename(str(filename or "fisier")))
-    stem, ext = os.path.splitext(name)
-    target, i = os.path.join(d, name), 1
-    while os.path.exists(target):
-        target = os.path.join(d, f"{stem} ({i}){ext}")
-        i += 1
-    with open(target, "wb") as f:
-        f.write(raw)
-    return os.path.basename(target)
-
-
-# ---------------------------------------------------------------- HTTP
-PAGES = {"/": "index.html", "/index.html": "index.html",
-         "/grafice": "grafice.html", "/grafice.html": "grafice.html"}
-
-
-class Handler(BaseHTTPRequestHandler):
-    server_version = "GrindRingsTracker/3.0"
+class Server(BaseHTTPRequestHandler):
+    server_version = "GrindRings/1.0"
 
     def log_message(self, fmt, *args):
         sys.stdout.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {self.client_address[0]} {fmt % args}\n")
 
-    def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-
-    def send_json(self, status, obj):
-        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+    def raspuns(self, status, corp, tip, extra=None):
         self.send_response(status)
-        self._cors()
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def send_bytes(self, data, ctype, extra_headers=None):
-        self.send_response(200)
-        self._cors()
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-        for k, v in (extra_headers or {}).items():
+        self.send_header("Content-Type", tip)
+        self.send_header("Content-Length", str(len(corp)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()
-        self.wfile.write(data)
+        self.wfile.write(corp)
 
-    def send_file(self, path, ctype=None, download_name=None):
+    def json(self, obj, status=200):
+        self.raspuns(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+
+    def fisier(self, path, tip=None, descarcare=None):
         if not os.path.isfile(path):
-            return self.send_error(HTTPStatus.NOT_FOUND, "Fisier inexistent")
-        ctype = ctype or mimetypes.guess_type(path)[0] or "application/octet-stream"
+            return self.json({"ok": False, "eroare": "Nu există."}, 404)
         with open(path, "rb") as f:
-            data = f.read()
-        headers = {"Content-Disposition": f"inline; filename*=UTF-8''{quote(download_name)}"} if download_name else {}
-        self.send_bytes(data, ctype, headers)
+            date_f = f.read()
+        extra = {"Content-Disposition": f"inline; filename*=UTF-8''{quote(descarcare)}"} if descarcare else None
+        self.raspuns(200, date_f, tip or mimetypes.guess_type(path)[0] or "application/octet-stream", extra)
 
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self._cors()
-        self.end_headers()
+    def corp_json(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > (MAX_ATASAMENT_MB * 1.4 + 1) * 1024 * 1024:
+            raise Eroare("Cerere prea mare.", 413)
+        try:
+            return json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+        except ValueError:
+            raise Eroare("JSON invalid.")
+
+    def ruta(self, metoda):
+        url = urlparse(self.path)
+        p = unquote(url.path).rstrip("/") or "/"
+        q = parse_qs(url.query)
+        try:
+            if metoda == "GET":
+                if p in PAGINI:
+                    return self.fisier(cale(PAGINI[p]), "text/html; charset=utf-8")
+                if p == "/api/actiuni":
+                    return self.json({"ok": True, "actiuni": toate_actiunile(), "azi": date.today().isoformat()})
+                m = re.fullmatch(r"/api/actiuni/(\d+)", p)
+                if m:
+                    return self.json({"ok": True, **o_actiune(int(m.group(1)))})
+                if p == "/api/liste":
+                    return self.json({"ok": True, "liste": liste()})
+                if p == "/api/istoric":
+                    return self.json({"ok": True, "istoric": istoric_general()})
+                if p == "/api/export.csv":
+                    return self.raspuns(200, export_csv(), "text/csv; charset=utf-8",
+                                        {"Content-Disposition": f"attachment; filename=grind_rings_{date.today():%Y-%m-%d}.csv"})
+                m = re.fullmatch(r"/atasamente/(\d+)/([^/]+)", p)
+                if m:
+                    nume = nume_sigur(m.group(2))
+                    return self.fisier(os.path.join(dir_atasamente(int(m.group(1))), nume), descarcare=nume)
+                if p == "/sanatate":
+                    return self.json({"ok": True, "app": APP_NAME})
+                return self.json({"ok": False, "eroare": "Pagina nu există."}, 404)
+
+            d = self.corp_json()
+            if p == "/api/cod":
+                nume = editor_dupa_cod(d.get("cod"))
+                return self.json({"ok": bool(nume), "nume": nume} if nume else {"ok": False, "eroare": "Cod incorect."},
+                                 200 if nume else 403)
+            autor = cere_editor(d)
+            if p == "/api/actiuni":
+                nr = adauga(d, autor)
+                print(f"  + #{nr} de {autor}")
+                return self.json({"ok": True, "nr": nr})
+            m = re.fullmatch(r"/api/actiuni/(\d+)(?:/(comentariu|sterge|atasament))?", p)
+            if m:
+                nr, act = int(m.group(1)), m.group(2)
+                if act is None:
+                    modifica(nr, d, autor)
+                elif act == "comentariu":
+                    comenteaza(nr, d.get("text"), autor)
+                elif act == "sterge":
+                    sterge(nr, autor)
+                else:
+                    nume = salveaza_atasament(nr, d.get("nume"), d.get("continut"))
+                    with db_lock, db() as c:
+                        jurnal(c, nr, "atașament", autor, {"fisier": nume})
+                print(f"  ~ #{nr} {act or 'modificare'} de {autor}")
+                return self.json({"ok": True})
+            return self.json({"ok": False, "eroare": "Rută necunoscută."}, 404)
+        except Eroare as e:
+            return self.json({"ok": False, "eroare": str(e)}, e.status)
+        except sqlite3.IntegrityError as e:
+            return self.json({"ok": False, "eroare": f"Date invalide: {e}"}, 400)
+        except Exception as e:  # noqa: BLE001
+            return self.json({"ok": False, "eroare": f"Eroare server: {type(e).__name__}: {e}"}, 500)
 
     def do_GET(self):
-        url = urlparse(self.path)
-        path = unquote(url.path)
-        qs = parse_qs(url.query)
-        try:
-            if path in PAGES:
-                return self.send_file(here(PAGES[path]), "text/html; charset=utf-8")
-            if path.startswith("/fonts/"):
-                fname = os.path.basename(path)
-                ctype = "text/css; charset=utf-8" if fname.endswith(".css") else "font/woff2"
-                return self.send_file(os.path.join(BASE_DIR, "fonts", fname), ctype)
-            if path == "/api/actions":
-                return self.send_json(200, {"ok": True, "rows": all_actions()})
-            if path == "/api/lists":
-                return self.send_json(200, {"ok": True, "lists": form_lists()})
-            if path == "/api/export.csv":
-                name = f"grind_rings_actiuni_{date.today():%Y-%m-%d}.csv"
-                return self.send_bytes(export_csv(), "text/csv; charset=utf-8",
-                                       {"Content-Disposition": f"attachment; filename={name}"})
-            if path == "/api/history":
-                no = (qs.get("no") or [""])[0]
-                return self.send_json(200, {"ok": True, "history": history(no or None)})
-            if path == "/list":
-                no = (qs.get("no") or [""])[0]
-                source = (qs.get("source") or ["grindrings"])[0]
-                return self.send_json(200, {"ok": True, "files": list_attachments(source, no)})
-            if path.startswith("/attachments/"):
-                parts = [p for p in path[len("/attachments/"):].split("/") if p]
-                if len(parts) != 3:
-                    return self.send_error(HTTPStatus.NOT_FOUND)
-                source, no, fname = parts
-                full = os.path.join(attach_dir(source, no), safe_part(fname))
-                root = os.path.realpath(here(ATTACHMENTS_DIR))
-                if not os.path.realpath(full).startswith(root + os.sep):
-                    return self.send_error(HTTPStatus.FORBIDDEN)
-                return self.send_file(full, download_name=fname)
-            if path == "/health":
-                return self.send_json(200, {"ok": True, "app": APP_NAME, "database": DB_PATH})
-        except sqlite3.Error as e:
-            return self.send_json(500, {"ok": False, "error": f"Baza de date: {e}"})
-        self.send_error(HTTPStatus.NOT_FOUND)
+        self.ruta("GET")
 
     def do_POST(self):
-        path = urlparse(self.path).path.rstrip("/") or "/"
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-            data = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-        except Exception:  # noqa: BLE001
-            return self.send_json(400, {"ok": False, "error": "JSON invalid"})
-        if path not in ("/", "/edit", "/delete", "/upload"):
-            return self.send_json(404, {"ok": False, "error": "Rută necunoscută"})
-        user = check_pin(data.get("pin"))
-        if not user:
-            return self.send_json(403, {"ok": False, "error": "Cod incorect"})
-        try:
-            if path == "/":
-                for f in ("client", "responsabil", "actiune"):
-                    if not str(data.get(f) or "").strip():
-                        return self.send_json(400, {"ok": False, "error": f"Câmpul „{f}” este obligatoriu"})
-                no = add_action(data, user)
-                print(f"  + actiune #{no} adaugata de {user}")
-                return self.send_json(200, {"ok": True, "no": no})
-            if path == "/edit":
-                if not edit_action(data, user):
-                    return self.send_json(404, {"ok": False, "error": "Acțiunea nu a fost găsită"})
-                print(f"  ~ actiune #{data.get('no')} editata de {user}")
-                return self.send_json(200, {"ok": True})
-            if path == "/delete":
-                if not delete_action(data.get("no"), user):
-                    return self.send_json(404, {"ok": False, "error": "Acțiunea nu a fost găsită"})
-                print(f"  - actiune #{data.get('no')} stearsa de {user}")
-                return self.send_json(200, {"ok": True})
-            name = save_attachment(data.get("source"), data.get("no"), data.get("filename"), data.get("contentBase64"))
-            print(f"  @ atasament '{name}' la #{data.get('no')} de {user}")
-            return self.send_json(200, {"ok": True, "filename": name})
-        except sqlite3.Error as e:
-            return self.send_json(500, {"ok": False, "error": f"Baza de date: {e}"})
-        except (RuntimeError, ValueError) as e:
-            return self.send_json(500, {"ok": False, "error": str(e)})
-        except Exception as e:  # noqa: BLE001
-            return self.send_json(500, {"ok": False, "error": f"{type(e).__name__}: {e}"})
+        self.ruta("POST")
 
 
-def run_server():
-    # pornit in fundal (pythonw / Task Scheduler): mesajele merg in server.log
-    if sys.stdout is None or sys.stderr is None:
-        log = open(here("server.log"), "a", encoding="utf-8", buffering=1)
-        sys.stdout = sys.stderr = log
-    os.makedirs(here(ATTACHMENTS_DIR), exist_ok=True)
-    httpd = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"{APP_NAME} ruleaza pe http://{HOST}:{PORT}/")
-    print(f"  Baza de date: {DB_PATH}")
-    print(f"  Atasamente:   {here(ATTACHMENTS_DIR)}")
-    if not list_editori():
-        print("  ATENTIE: nu exista niciun editor. Ruleaza editori.bat ca sa adaugi coduri.")
+def porneste():
+    if sys.stdout is None or sys.stderr is None:      # pornit in fundal (pythonw)
+        sys.stdout = sys.stderr = open(cale("server.log"), "a", encoding="utf-8", buffering=1)
+    os.makedirs(cale(ATASAMENTE_DIR), exist_ok=True)
+    srv = ThreadingHTTPServer((HOST, PORT), Server)
+    print(f"{APP_NAME} rulează pe http://{HOST}:{PORT}/   (baza de date: {DB_PATH})")
+    if not lista_editori():
+        print("  ATENȚIE: nu există niciun editor – rulează editori.bat.")
     try:
-        httpd.serve_forever()
+        srv.serve_forever()
     except KeyboardInterrupt:
-        print("\nOprit.")
+        print("Oprit.")
 
 
 def main():
     p = argparse.ArgumentParser(description=APP_NAME)
-    p.add_argument("--editori", action="store_true", help="administrare editori (coduri personale)")
-    p.add_argument("--adauga-editor", nargs=2, metavar=("NUME", "COD"), help="adauga/schimba un editor fara meniu")
-    p.add_argument("--import-excel", metavar="FISIER", help="importa actiuni dintr-un .xlsx/.xlsm")
-    p.add_argument("--foaie", metavar="NUME", help="foaia din Excel (implicit: se detecteaza)")
-    p.add_argument("--import-csv", metavar="FISIER", help="importa actiuni dintr-un CSV")
-    p.add_argument("--raport-mail", action="store_true", help="pregateste mailurile in mail_out/ (pentru Outlook)")
-    p.add_argument("--trimite-mail", action="store_true", help="trimite mailurile prin SMTP (mail.ini)")
+    p.add_argument("--editori", action="store_true", help="administrare editori")
+    p.add_argument("--adauga-editor", nargs=2, metavar=("NUME", "COD"), help="adaugă/schimbă un editor fără meniu")
+    p.add_argument("--numar-editori", action="store_true", help="afișează câți editori există")
+    p.add_argument("--import-excel", metavar="FISIER")
+    p.add_argument("--foaie", metavar="NUME", help="foaia din Excel (implicit se detectează)")
+    p.add_argument("--import-csv", metavar="FISIER")
+    p.add_argument("--raport-mail", action="store_true", help="pregătește mailurile pentru Outlook")
+    p.add_argument("--trimite-mail", action="store_true", help="trimite mailurile prin SMTP")
     a = p.parse_args()
-    init_db()
+    creeaza_db()
     if a.editori:
-        return editori_menu()
+        return meniu_editori()
     if a.adauga_editor:
         try:
-            set_editor(*a.adauga_editor)
+            seteaza_editor(*a.adauga_editor)
         except ValueError as e:
             raise SystemExit(str(e))
         return print(f"OK - {a.adauga_editor[0]} poate edita.")
+    if a.numar_editori:
+        return print(len(lista_editori()))
     if a.import_excel:
-        return import_excel(a.import_excel, a.foaie)
+        return importa_excel(a.import_excel, a.foaie)
     if a.import_csv:
-        return import_csv(a.import_csv)
+        return importa_csv(a.import_csv)
     if a.raport_mail:
         return raport_mail()
     if a.trimite_mail:
-        return trimite_mail_smtp()
-    run_server()
+        return trimite_mail()
+    porneste()
 
 
 if __name__ == "__main__":

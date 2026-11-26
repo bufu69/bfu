@@ -1,14 +1,14 @@
 ﻿; Installer pentru Grind Rings Action Tracker.
-; Se compileaza cu NSIS (https://nsis.sourceforge.io): click dreapta pe acest fisier -> "Compile NSIS Script".
-; Rezulta setup-GrindRingsTracker.exe, care copiaza fisierele in C:\GrindRingsTracker
-; si ruleaza instalare-server.ps1 (Python, editori, firewall, pornire automata).
+; Compilare cu NSIS (https://nsis.sourceforge.io): click dreapta pe fisier -> "Compile NSIS Script".
+; Rezulta setup-GrindRingsTracker.exe: copiaza programul in C:\GrindRingsTracker si ruleaza
+; instalare-server.ps1 (Python, primul editor, firewall, pornire automata).
 
 Unicode true
-!define APPNAME "Grind Rings Action Tracker"
+!define APP "Grind Rings Action Tracker"
 !define TASK "GrindRingsTracker"
-!define VERSION "1.0"
+!define VERSIUNE "1.0"
 
-Name "${APPNAME}"
+Name "${APP}"
 OutFile "setup-GrindRingsTracker.exe"
 InstallDir "C:\GrindRingsTracker"
 RequestExecutionLevel admin
@@ -19,13 +19,13 @@ Page instfiles
 UninstPage uninstConfirm
 UninstPage instfiles
 
-Section "Instalare"
+Section "Program"
+  nsExec::Exec 'schtasks /End /TN "${TASK}"'
   SetOutPath "$INSTDIR"
-  ; programul (datele existente - grind_rings.db, attachments, mail.ini - nu se suprascriu)
+  ; doar fisierele programului - datele existente (grind_rings.db, atasamente, mail.ini) raman
   File "server.py"
   File "index.html"
   File "grafice.html"
-  File "pagina-veche-past_due_tracker.html"
   File "CITESTE.txt"
   File "mail-exemplu.ini"
   File "instalare-server.bat"
@@ -40,26 +40,20 @@ Section "Instalare"
   File "outlook-mailuri.bat"
   File "trimite-outlook.ps1"
   File "setup-GrindRingsTracker.nsi"
-  SetOutPath "$INSTDIR\fonts"
-  File "fonts\*.*"
-  SetOutPath "$INSTDIR"
-
-  ; opreste serverul daca ruleaza deja (actualizare)
-  nsExec::Exec 'schtasks /End /TN "${TASK}"'
 
   WriteUninstaller "$INSTDIR\dezinstalare.exe"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${TASK}" "DisplayName" "${APPNAME}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${TASK}" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${TASK}" "DisplayName" "${APP}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${TASK}" "DisplayVersion" "${VERSIUNE}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${TASK}" "UninstallString" '"$INSTDIR\dezinstalare.exe"'
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${TASK}" "InstallLocation" "$INSTDIR"
 
-  CreateDirectory "$SMPROGRAMS\${APPNAME}"
-  CreateShortcut "$SMPROGRAMS\${APPNAME}\Dashboard.lnk" "http://localhost:8092/"
-  CreateShortcut "$SMPROGRAMS\${APPNAME}\Editori.lnk" "$INSTDIR\editori.bat"
-  CreateShortcut "$SMPROGRAMS\${APPNAME}\Reporneste tracker.lnk" "$INSTDIR\reporneste-tracker.bat"
-  CreateShortcut "$SMPROGRAMS\${APPNAME}\Folder.lnk" "$INSTDIR"
+  CreateDirectory "$SMPROGRAMS\${APP}"
+  WriteINIStr "$SMPROGRAMS\${APP}\Tracker.url" "InternetShortcut" "URL" "http://localhost:8092/"
+  WriteINIStr "$SMPROGRAMS\${APP}\Grafice.url" "InternetShortcut" "URL" "http://localhost:8092/grafice"
+  CreateShortcut "$SMPROGRAMS\${APP}\Editori.lnk" "$INSTDIR\editori.bat"
+  CreateShortcut "$SMPROGRAMS\${APP}\Reporneste tracker.lnk" "$INSTDIR\reporneste-tracker.bat"
+  CreateShortcut "$SMPROGRAMS\${APP}\Folder program.lnk" "$INSTDIR"
 
-  ; configurarea (Python, primul editor, firewall, pornire automata)
   ExecWait 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\instalare-server.ps1"'
 SectionEnd
 
@@ -69,17 +63,16 @@ Section "Uninstall"
   nsExec::Exec 'schtasks /Delete /F /TN "${TASK}-Mail"'
   nsExec::Exec 'netsh advfirewall firewall delete rule name="Grind Rings Action Tracker 8092"'
   Delete "$INSTDIR\server.py"
-  Delete "$INSTDIR\*.html"
-  Delete "$INSTDIR\*.bat"
-  Delete "$INSTDIR\*.ps1"
+  Delete "$INSTDIR\index.html"
+  Delete "$INSTDIR\grafice.html"
   Delete "$INSTDIR\CITESTE.txt"
   Delete "$INSTDIR\mail-exemplu.ini"
+  Delete "$INSTDIR\*.bat"
+  Delete "$INSTDIR\*.ps1"
   Delete "$INSTDIR\setup-GrindRingsTracker.nsi"
-  RMDir /r "$INSTDIR\fonts"
   RMDir /r "$INSTDIR\mail_out"
   Delete "$INSTDIR\dezinstalare.exe"
-  RMDir /r "$SMPROGRAMS\${APPNAME}"
+  RMDir /r "$SMPROGRAMS\${APP}"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${TASK}"
-  ; baza de date, atasamentele, backup-urile si mail.ini raman in $INSTDIR
-  MessageBox MB_OK "Programul a fost dezinstalat. Datele (grind_rings.db, attachments, backups, mail.ini) au ramas in $INSTDIR."
+  MessageBox MB_OK "Programul a fost dezinstalat.$\r$\nDatele au ramas in $INSTDIR (grind_rings.db, atasamente, backups, mail.ini)."
 SectionEnd
