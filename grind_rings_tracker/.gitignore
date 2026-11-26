@@ -1,6 +1,7 @@
 config.json
 attachments/
-*.xlsx
-*.xlsm
-__pycache__/
 backups/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/

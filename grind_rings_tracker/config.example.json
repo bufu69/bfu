@@ -1,13 +1,18 @@
 {
   "host": "0.0.0.0",
   "port": 8092,
-  "excel_file": "Grind_Rings_Action_Tracker.xlsx",
-  "sheet_name": "ActionItems",
-  "lists_sheet_name": "Lists",
+  "database": "grind_rings.db",
   "attachments_dir": "attachments",
   "ticker_source": "http://romhdata03/timkentraining/Dashboard2026.xlsm",
   "pins": {
     "1234": "Admin"
+  },
+  "lists": {
+    "Client": [],
+    "Responsabil": [],
+    "Tip Actiune": [],
+    "Familie Rulment": [],
+    "Tip component": []
   },
   "max_upload_mb": 25,
   "backup_dir": "backups",

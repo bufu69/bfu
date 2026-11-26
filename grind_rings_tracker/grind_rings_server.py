@@ -1,46 +1,42 @@
 #!/usr/bin/env python3
 """
-Grind Rings Action Tracker - server Python (port 8092).
+Grind Rings Action Tracker - server Python (port 8092), cu baza de date SQLite.
 
-Inlocuieste combinatia "server web + Start-ActionListener.ps1" a trackerului
-Past Due: un singur proces care
-  * serveste dashboard-ul (static/index.html)          GET  /
-  * serveste fisierul Excel cu actiunile               GET  /data/tracker
-  * serveste ticker-ul (Dashboard2026.xlsm) prin proxy GET  /data/ticker
-  * adauga o actiune noua in Excel                     POST /
-  * editeaza o actiune                                 POST /edit
-  * sterge o actiune                                   POST /delete
-  * ataseaza un fisier la o actiune                    POST /upload
-  * listeaza fisierele atasate                         GET  /list?no=..&source=..
-  * serveste fisierele atasate                         GET  /attachments/<source>/<no>/<fisier>
+Un singur proces, fara Excel si fara Start-ActionListener.ps1:
+  * serveste dashboard-ul (static/index.html)            GET  /
+  * actiunile din baza de date (JSON)                    GET  /api/actions
+  * listele pentru formular (clienti, responsabili...)   GET  /api/lists
+  * export CSV al tuturor actiunilor                     GET  /api/export.csv
+  * istoricul modificarilor                              GET  /api/history?no=..
+  * ticker-ul (Dashboard2026.xlsm) prin proxy            GET  /data/ticker
+  * adauga o actiune noua                                POST /
+  * editeaza o actiune                                   POST /edit
+  * sterge o actiune                                     POST /delete
+  * ataseaza un fisier la o actiune                      POST /upload
+  * listeaza fisierele atasate                           GET  /list?no=..&source=..
+  * serveste fisierele atasate                           GET  /attachments/<source>/<no>/<fisier>
 
-Pornire:  python grind_rings_server.py            (necesita: pip install openpyxl)
+Pornire:  python grind_rings_server.py        (doar Python 3, fara pachete externe)
 Setari:   config.json langa acest script (vezi config.example.json).
 """
 
 import argparse
 import base64
 import csv
+import io
 import json
 import mimetypes
 import os
 import re
-import shutil
+import sqlite3
 import sys
-import tempfile
 import threading
-import time
 import unicodedata
 import urllib.request
 from datetime import date, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, unquote, urlparse
-
-try:
-    import openpyxl
-except ImportError:
-    sys.exit("Lipseste openpyxl. Instaleaza-l cu:  pip install openpyxl")
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_NAME = "Grind Rings Action Tracker"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -48,64 +44,60 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = {
     "host": "0.0.0.0",
     "port": 8092,
-    # Fisierul Excel cu actiunile (.xlsx sau .xlsm - macro-urile se pastreaza).
-    "excel_file": "Grind_Rings_Action_Tracker.xlsx",
-    "sheet_name": "ActionItems",
-    "lists_sheet_name": "Lists",
+    # Baza de date SQLite (se creeaza automat la prima pornire).
+    "database": "grind_rings.db",
     # Folderul unde se salveaza atasamentele: <folder>/<source>/<no>/<fisier>
     "attachments_dir": "attachments",
     # Fisierul ticker-ului: URL (http://...) sau cale locala / UNC. Gol = fara ticker.
     "ticker_source": "http://romhdata03/timkentraining/Dashboard2026.xlsm",
-    # Codurile personale: "cod": "Nume". Numele apare in comentarii.
+    # Codurile personale: "cod": "Nume". Numele apare in comentarii si in istoric.
     "pins": {"1234": "Admin"},
+    # Valori fixe pentru listele din formular (pe langa cele deja folosite in actiuni).
+    "lists": {
+        "Client": [],
+        "Responsabil": [],
+        "Tip Actiune": [],
+        "Familie Rulment": [],
+        "Tip component": [],
+    },
     "max_upload_mb": 25,
-    # Backup zilnic al Excelului inainte de prima scriere din zi; cate zile se pastreaza.
+    # Backup zilnic al bazei de date, inainte de prima modificare din zi.
     "backup_dir": "backups",
     "backup_keep_days": 30,
 }
 
-FIELD_KEYWORDS = {
-    "no": ["no", "nr", "nr crt", "numar"],
-    "dataAdaugare": ["data adaugare", "data creare", "added"],
-    "sapRulment": ["sap id rulment", "sap rulment"],
-    "descRulment": ["descriere rulment"],
-    "familie": ["familie rulment", "familie"],
-    "comandaMontaj": ["comanda montaj"],
-    "client": ["client"],
-    "sapComponent": ["sap id component", "sap component"],
-    "descComponent": ["descriere component"],
-    "tipComponent": ["tip component"],
-    "comandaComponent": ["comanda component"],
-    "qty": ["qty", "cantitate"],
-    "tipActiune": ["tip actiune"],
-    "actiune": ["actiune"],
-    "responsabil": ["responsabil"],
-    "dataPlanificata": ["data planificata"],
-    "dataActuala": ["data finalizare", "data actuala"],
-    "stadiu": ["stadiu", "status"],
-    "comentarii": ["comentarii", "observatii", "note"],
-    "urgent": ["urgent client", "urgent"],
-}
-
-DEFAULT_HEADERS = [
-    ("no", "No"), ("dataAdaugare", "Data adaugare"), ("sapRulment", "SAP id Rulment"),
-    ("descRulment", "Descriere Rulment"), ("familie", "Familie Rulment"),
-    ("comandaMontaj", "Comanda Montaj"), ("client", "Client"),
-    ("sapComponent", "SAP id Component"), ("descComponent", "Descriere Component"),
-    ("tipComponent", "Tip component"), ("comandaComponent", "Comanda Component"),
-    ("qty", "Qty"), ("actiune", "Actiune"), ("tipActiune", "Tip Actiune"),
-    ("responsabil", "Responsabil"), ("dataPlanificata", "Data Planificata"),
-    ("dataActuala", "Data Finalizare"), ("stadiu", "Stadiu"),
-    ("urgent", "Urgent Client"), ("comentarii", "Comentarii"),
+# (coloana in baza de date, cheia din formular/payload, antetul trimis paginii)
+# Antetele sunt aceleasi ca in Excelul vechi, ca pagina sa le recunoasca la fel.
+COLUMNS = [
+    ("no", "no", "No"),
+    ("data_adaugare", "dataAdaugare", "Data adaugare"),
+    ("sap_rulment", "sapRulment", "SAP id Rulment"),
+    ("desc_rulment", "descRulment", "Descriere Rulment"),
+    ("familie_rulment", "familie", "Familie Rulment"),
+    ("comanda_montaj", "comandaMontaj", "Comanda Montaj"),
+    ("client", "client", "Client"),
+    ("sap_component", "sapComponent", "SAP id Component"),
+    ("desc_component", "descComponent", "Descriere Component"),
+    ("tip_component", "tipComponent", "Tip component"),
+    ("comanda_component", "comandaComponent", "Comanda Component"),
+    ("qty", "qty", "Qty"),
+    ("actiune", "actiune", "Actiune"),
+    ("tip_actiune", "tipActiune", "Tip Actiune"),
+    ("responsabil", "responsabil", "Responsabil"),
+    ("data_planificata", "dataPlanificata", "Data Planificata"),
+    ("data_finalizare", "dataActuala", "Data Finalizare"),
+    ("stadiu", "stadiu", "Stadiu"),
+    ("urgent", "urgent", "Urgent Client"),
+    ("comentarii", "comentarii", "Comentarii"),
 ]
-LIST_HEADERS = ["Client", "Responsabil", "Tip Actiune", "Familie Rulment", "Tip component"]
-
 TEXT_FIELDS = ["sapRulment", "descRulment", "familie", "comandaMontaj", "client",
                "sapComponent", "descComponent", "tipComponent", "comandaComponent",
                "qty", "actiune", "tipActiune", "responsabil"]
-DATE_FORMAT = "dd.mm.yyyy"
+KEY_TO_COL = {key: col for col, key, _ in COLUMNS}
+LIST_COLUMNS = {"Client": "client", "Responsabil": "responsabil", "Tip Actiune": "tip_actiune",
+                "Familie Rulment": "familie_rulment", "Tip component": "tip_component"}
 
-excel_lock = threading.Lock()
+db_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------- config
@@ -115,7 +107,7 @@ def load_config():
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             cfg.update(json.load(f))
-    for key in ("excel_file", "attachments_dir", "backup_dir"):
+    for key in ("database", "attachments_dir", "backup_dir"):
         if not os.path.isabs(cfg[key]):
             cfg[key] = os.path.join(BASE_DIR, cfg[key])
     cfg["pins"] = {str(k): str(v) for k, v in cfg.get("pins", {}).items()}
@@ -131,31 +123,14 @@ def norm(s):
     return "".join(c for c in s if unicodedata.category(c) != "Mn").lower().strip()
 
 
-def detect_columns(header_cells):
-    """Acelasi algoritm ca in dashboard: intai potrivire exacta, apoi partiala."""
-    headers = [norm(h) for h in header_cells]
-    colmap = {}
-    for exact in (True, False):
-        for field, kws in FIELD_KEYWORDS.items():
-            if field in colmap:
-                continue
-            for kw in kws:
-                idx = next((i for i, h in enumerate(headers)
-                            if h and (h == kw if exact else kw in h)
-                            and (i + 1) not in colmap.values()), None)
-                if idx is not None:
-                    colmap[field] = idx + 1  # coloana 1-based
-                    break
-    return colmap
-
-
-def parse_date(s):
+def to_iso_date(s):
+    """'dd.mm.yyyy' / 'yyyy-mm-dd' / 'dd/mm/yyyy' -> 'yyyy-mm-dd'. Altceva ramane neschimbat."""
     s = str(s or "").strip()
     if not s:
         return None
     for fmt in ("%d.%m.%Y", "%Y-%m-%d", "%d/%m/%Y"):
         try:
-            return datetime.strptime(s, fmt)
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except ValueError:
             pass
     return s
@@ -181,50 +156,60 @@ def stamp_comment(text, user):
     return f"[{datetime.now():%d.%m.%Y %H:%M} {user}] {text}"
 
 
-# ---------------------------------------------------------------- Excel
-def ensure_workbook():
-    path = CFG["excel_file"]
-    if os.path.exists(path):
-        return
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = CFG["sheet_name"]
-    ws.append([h for _, h in DEFAULT_HEADERS])
-    for cell in ws[1]:
-        cell.font = openpyxl.styles.Font(bold=True)
-    ws.freeze_panes = "A2"
-    lists = wb.create_sheet(CFG["lists_sheet_name"])
-    lists.append(LIST_HEADERS)
-    wb.save(path)
-    print(f"Am creat fisierul Excel nou: {path}")
+def now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def open_sheet():
-    path = CFG["excel_file"]
-    wb = openpyxl.load_workbook(path, keep_vba=path.lower().endswith(".xlsm"))
-    ws = wb[CFG["sheet_name"]] if CFG["sheet_name"] in wb.sheetnames else wb.worksheets[0]
-    header = [c.value for c in ws[1]]
-    colmap = detect_columns(header)
-    # adauga coloanele lipsa la final, ca sa nu se piarda date
-    for field, title in DEFAULT_HEADERS:
-        if field not in colmap:
-            col = ws.max_column + 1
-            ws.cell(row=1, column=col, value=title)
-            colmap[field] = col
-    return wb, ws, colmap
+# ---------------------------------------------------------------- baza de date
+def connect():
+    conn = sqlite3.connect(CFG["database"], timeout=15)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def init_db():
+    os.makedirs(os.path.dirname(CFG["database"]), exist_ok=True)
+    cols = ",\n  ".join(f"{c} TEXT" for c, _, _ in COLUMNS if c != "no")
+    with connect() as conn:
+        conn.executescript(f"""
+CREATE TABLE IF NOT EXISTS actions (
+  no INTEGER PRIMARY KEY AUTOINCREMENT,
+  {cols},
+  created_by TEXT,
+  created_at TEXT,
+  updated_by TEXT,
+  updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action_no INTEGER,
+  operation TEXT,
+  user TEXT,
+  at TEXT,
+  details TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_history_no ON history(action_no);
+""")
+
+
+def log_history(conn, no, operation, user, details):
+    conn.execute("INSERT INTO history(action_no, operation, user, at, details) VALUES (?,?,?,?,?)",
+                 (no, operation, user, now_str(), json.dumps(details, ensure_ascii=False)))
 
 
 def daily_backup():
-    """Copie a Excelului o data pe zi, inainte de prima modificare; sterge copiile vechi."""
-    path, bdir = CFG["excel_file"], CFG["backup_dir"]
-    if not os.path.exists(path):
+    """Copie a bazei de date o data pe zi, inainte de prima modificare; sterge copiile vechi."""
+    src, bdir = CFG["database"], CFG["backup_dir"]
+    if not os.path.exists(src):
         return
     os.makedirs(bdir, exist_ok=True)
-    stem, ext = os.path.splitext(os.path.basename(path))
+    stem, ext = os.path.splitext(os.path.basename(src))
     target = os.path.join(bdir, f"{stem}_{date.today():%Y-%m-%d}{ext}")
     if not os.path.exists(target):
-        shutil.copy2(path, target)
+        with connect() as s, sqlite3.connect(target) as d:
+            s.backup(d)
     keep = int(CFG.get("backup_keep_days") or 0)
     if keep > 0:
         olds = sorted(f for f in os.listdir(bdir) if f.startswith(stem + "_") and f.endswith(ext))
@@ -235,131 +220,129 @@ def daily_backup():
                 pass
 
 
-def save_workbook(wb):
-    path = CFG["excel_file"]
-    daily_backup()
-    fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(path)[1], dir=os.path.dirname(path))
-    os.close(fd)
-    try:
-        wb.save(tmp)
-        # pe Windows fisierul poate fi blocat cateva clipe (antivirus, cineva il citeste)
-        for attempt in range(5):
-            try:
-                os.replace(tmp, path)
-                return
-            except PermissionError:
-                if attempt == 4:
-                    raise
-                time.sleep(1)
-    except PermissionError:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise RuntimeError("Fișierul Excel este deschis/blocat de alt program. Închide-l și încearcă din nou.")
-    except Exception:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise
-
-
-def last_data_row(ws, colmap):
-    for r in range(ws.max_row, 1, -1):
-        if any(ws.cell(row=r, column=c).value not in (None, "") for c in colmap.values()):
-            return r
-    return 1
-
-
-def find_row(ws, colmap, no):
-    key = str(no).strip()
-    for r in range(2, ws.max_row + 1):
-        v = ws.cell(row=r, column=colmap["no"]).value
-        if v is None:
-            continue
-        if isinstance(v, float) and v.is_integer():
-            v = int(v)
-        if str(v).strip() == key:
-            return r
-    return None
-
-
-def set_cell(ws, row, col, value):
-    cell = ws.cell(row=row, column=col, value=value)
-    if isinstance(value, (datetime, date)):
-        cell.number_format = DATE_FORMAT
-
-
-def write_fields(ws, row, colmap, data):
-    for f in TEXT_FIELDS:
-        if f in data:
-            val = str(data.get(f) or "").strip()
-            if f == "qty" and re.fullmatch(r"-?\d+(\.\d+)?", val):
-                val = float(val) if "." in val else int(val)
-            set_cell(ws, row, colmap[f], val)
+def field_values(data):
+    """Valorile din payload care se scriu in baza de date (doar cele prezente)."""
+    vals = {}
+    for key in TEXT_FIELDS:
+        if key in data:
+            vals[KEY_TO_COL[key]] = str(data.get(key) or "").strip()
     if "dataPlanificata" in data:
-        set_cell(ws, row, colmap["dataPlanificata"], parse_date(data["dataPlanificata"]))
+        vals["data_planificata"] = to_iso_date(data["dataPlanificata"])
     if "urgent" in data:
-        set_cell(ws, row, colmap["urgent"], "Da" if is_urgent(data["urgent"]) else "Nu")
+        vals["urgent"] = "Da" if is_urgent(data["urgent"]) else "Nu"
+    return vals
 
 
 def add_action(data, user):
-    with excel_lock:
-        wb, ws, colmap = open_sheet()
-        row = last_data_row(ws, colmap) + 1
-        nums = []
-        for r in range(2, row):
-            v = ws.cell(row=r, column=colmap["no"]).value
-            try:
-                nums.append(int(float(v)))
-            except (TypeError, ValueError):
-                pass
-        no = max(nums, default=0) + 1
-        set_cell(ws, row, colmap["no"], no)
-        set_cell(ws, row, colmap["dataAdaugare"], parse_date(data.get("dataAdaugare")) or datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
-        write_fields(ws, row, colmap, {"urgent": "Nu", **data})
-        set_cell(ws, row, colmap["stadiu"], data.get("stadiu") or "Deschis")
-        set_cell(ws, row, colmap["comentarii"], stamp_comment(data.get("comentarii"), user))
-        save_workbook(wb)
-        return no
+    vals = field_values({"urgent": "Nu", **data})
+    vals["data_adaugare"] = to_iso_date(data.get("dataAdaugare")) or date.today().isoformat()
+    vals["stadiu"] = data.get("stadiu") or "Deschis"
+    vals["comentarii"] = stamp_comment(data.get("comentarii"), user)
+    vals.update(created_by=user, created_at=now_str(), updated_by=user, updated_at=now_str())
+    with db_lock:
+        daily_backup()
+        with connect() as conn:
+            cur = conn.execute(f"INSERT INTO actions ({','.join(vals)}) VALUES ({','.join('?' * len(vals))})",
+                               list(vals.values()))
+            no = cur.lastrowid
+            log_history(conn, no, "adaugare", user, vals)
+    return no
+
+
+def get_action(conn, no):
+    try:
+        no = int(float(str(no).strip()))
+    except (TypeError, ValueError):
+        return None
+    return conn.execute("SELECT * FROM actions WHERE no=?", (no,)).fetchone()
 
 
 def edit_action(data, user):
-    with excel_lock:
-        wb, ws, colmap = open_sheet()
-        row = find_row(ws, colmap, data.get("no"))
-        if row is None:
-            return False
-        write_fields(ws, row, colmap, data)
-        stadiu = data.get("stadiu")
-        if stadiu:
-            old = norm(ws.cell(row=row, column=colmap["stadiu"]).value)
-            set_cell(ws, row, colmap["stadiu"], stadiu)
-            fin = ws.cell(row=row, column=colmap["dataActuala"])
-            if stadiu == "Rezolvat" and fin.value in (None, ""):
-                set_cell(ws, row, colmap["dataActuala"], datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
-            elif stadiu != "Rezolvat" and "rezolv" in old:
-                fin.value = None
-        new_comment = stamp_comment(data.get("comentarii"), user)
-        if new_comment:
-            cell = ws.cell(row=row, column=colmap["comentarii"])
-            old = str(cell.value or "").strip()
-            cell.value = f"{old}\n{new_comment}" if old else new_comment
-        save_workbook(wb)
-        return True
+    with db_lock:
+        daily_backup()
+        with connect() as conn:
+            row = get_action(conn, data.get("no"))
+            if row is None:
+                return False
+            vals = field_values(data)
+            stadiu = data.get("stadiu")
+            if stadiu:
+                vals["stadiu"] = stadiu
+                if stadiu == "Rezolvat" and not row["data_finalizare"]:
+                    vals["data_finalizare"] = date.today().isoformat()
+                elif stadiu != "Rezolvat" and "rezolv" in norm(row["stadiu"]):
+                    vals["data_finalizare"] = None
+            new_comment = stamp_comment(data.get("comentarii"), user)
+            if new_comment:
+                old = (row["comentarii"] or "").strip()
+                vals["comentarii"] = f"{old}\n{new_comment}" if old else new_comment
+            changes = {k: {"inainte": row[k], "dupa": v} for k, v in vals.items() if row[k] != v}
+            vals.update(updated_by=user, updated_at=now_str())
+            conn.execute(f"UPDATE actions SET {','.join(f'{k}=?' for k in vals)} WHERE no=?",
+                         [*vals.values(), row["no"]])
+            log_history(conn, row["no"], "editare", user, changes)
+    return True
 
 
-def delete_action(no):
-    with excel_lock:
-        wb, ws, colmap = open_sheet()
-        row = find_row(ws, colmap, no)
-        if row is None:
-            return False
-        ws.delete_rows(row, 1)
-        save_workbook(wb)
-        return True
+def delete_action(no, user):
+    with db_lock:
+        daily_backup()
+        with connect() as conn:
+            row = get_action(conn, no)
+            if row is None:
+                return False
+            conn.execute("DELETE FROM actions WHERE no=?", (row["no"],))
+            log_history(conn, row["no"], "stergere", user, dict(row))
+    return True
 
 
-# ---------------------------------------------------------------- attachments
+def all_actions():
+    """Actiunile cu antetele din Excelul vechi, ca pagina sa le citeasca la fel."""
+    with connect() as conn:
+        rows = conn.execute("SELECT * FROM actions ORDER BY no").fetchall()
+    out = []
+    for r in rows:
+        item = {}
+        for col, _, header in COLUMNS:
+            v = r[col]
+            item[header] = "" if v is None else v
+        out.append(item)
+    return out
+
+
+def form_lists():
+    lists = {}
+    with connect() as conn:
+        for header, col in LIST_COLUMNS.items():
+            values = [str(v).strip() for v in CFG.get("lists", {}).get(header, []) if str(v).strip()]
+            for (v,) in conn.execute(f"SELECT DISTINCT {col} FROM actions WHERE {col} IS NOT NULL AND {col} <> '' ORDER BY {col}"):
+                if v not in values:
+                    values.append(v)
+            lists[header] = values
+    return lists
+
+
+def export_csv():
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow([h for _, _, h in COLUMNS])
+    for item in all_actions():
+        w.writerow([item[h] for _, _, h in COLUMNS])
+    return ("﻿" + buf.getvalue()).encode("utf-8")
+
+
+def history(no=None):
+    with connect() as conn:
+        if no:
+            rows = conn.execute("SELECT * FROM history WHERE action_no=? ORDER BY id DESC", (no,)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM history ORDER BY id DESC LIMIT 500").fetchall()
+    return [{**dict(r), "details": json.loads(r["details"] or "null")} for r in rows]
+
+
+# ---------------------------------------------------------------- atasamente
 def attach_dir(source, no):
-    return os.path.join(CFG["attachments_dir"], safe_part(source or "grindrings"), safe_part(no))
+    return os.path.join(CFG["attachments_dir"], safe_part(source or "pastdue"), safe_part(no))
 
 
 def list_attachments(source, no):
@@ -388,7 +371,7 @@ def save_attachment(source, no, filename, content_b64):
 
 # ---------------------------------------------------------------- HTTP
 class Handler(BaseHTTPRequestHandler):
-    server_version = "GrindRingsTracker/1.0"
+    server_version = "GrindRingsTracker/2.0"
 
     def log_message(self, fmt, *args):
         sys.stdout.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {self.client_address[0]} {fmt % args}\n")
@@ -404,6 +387,7 @@ class Handler(BaseHTTPRequestHandler):
         self._cors()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(body)
 
@@ -427,7 +411,7 @@ class Handler(BaseHTTPRequestHandler):
             data = f.read()
         headers = {}
         if download_name:
-            headers["Content-Disposition"] = f"inline; filename*=UTF-8''{urllib.request.quote(download_name)}"
+            headers["Content-Disposition"] = f"inline; filename*=UTF-8''{quote(download_name)}"
         self.send_bytes(data, ctype, headers)
 
     def do_OPTIONS(self):
@@ -441,34 +425,48 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(url.path)
         qs = parse_qs(url.query)
 
-        if path in ("/", "/index.html"):
-            return self.send_file(os.path.join(BASE_DIR, "static", "index.html"), "text/html; charset=utf-8")
+        try:
+            if path in ("/", "/index.html"):
+                return self.send_file(os.path.join(BASE_DIR, "static", "index.html"), "text/html; charset=utf-8")
 
-        if path == "/data/tracker":
-            with excel_lock:
-                return self.send_file(CFG["excel_file"], "application/octet-stream")
+            if path == "/api/actions":
+                return self.send_json(200, {"ok": True, "rows": all_actions()})
 
-        if path == "/data/ticker":
-            return self.serve_ticker()
+            if path == "/api/lists":
+                return self.send_json(200, {"ok": True, "lists": form_lists()})
 
-        if path == "/list":
-            no = (qs.get("no") or [""])[0]
-            source = (qs.get("source") or ["grindrings"])[0]
-            return self.send_json(200, {"ok": True, "files": list_attachments(source, no)})
+            if path == "/api/export.csv":
+                name = f"grind_rings_actiuni_{date.today():%Y-%m-%d}.csv"
+                return self.send_bytes(export_csv(), "text/csv; charset=utf-8",
+                                       {"Content-Disposition": f"attachment; filename={name}"})
 
-        if path.startswith("/attachments/"):
-            parts = [p for p in path[len("/attachments/"):].split("/") if p]
-            if len(parts) != 3:
-                return self.send_error(HTTPStatus.NOT_FOUND)
-            source, no, fname = parts
-            full = os.path.join(attach_dir(source, no), safe_part(fname))
-            root = os.path.realpath(CFG["attachments_dir"])
-            if not os.path.realpath(full).startswith(root + os.sep):
-                return self.send_error(HTTPStatus.FORBIDDEN)
-            return self.send_file(full, download_name=fname)
+            if path == "/api/history":
+                no = (qs.get("no") or [""])[0]
+                return self.send_json(200, {"ok": True, "history": history(no or None)})
 
-        if path == "/health":
-            return self.send_json(200, {"ok": True, "app": APP_NAME, "excel": CFG["excel_file"]})
+            if path == "/data/ticker":
+                return self.serve_ticker()
+
+            if path == "/list":
+                no = (qs.get("no") or [""])[0]
+                source = (qs.get("source") or ["pastdue"])[0]
+                return self.send_json(200, {"ok": True, "files": list_attachments(source, no)})
+
+            if path.startswith("/attachments/"):
+                parts = [p for p in path[len("/attachments/"):].split("/") if p]
+                if len(parts) != 3:
+                    return self.send_error(HTTPStatus.NOT_FOUND)
+                source, no, fname = parts
+                full = os.path.join(attach_dir(source, no), safe_part(fname))
+                root = os.path.realpath(CFG["attachments_dir"])
+                if not os.path.realpath(full).startswith(root + os.sep):
+                    return self.send_error(HTTPStatus.FORBIDDEN)
+                return self.send_file(full, download_name=fname)
+
+            if path == "/health":
+                return self.send_json(200, {"ok": True, "app": APP_NAME, "database": CFG["database"]})
+        except sqlite3.Error as e:
+            return self.send_json(500, {"ok": False, "error": f"Baza de date: {e}"})
 
         self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -516,7 +514,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {"ok": True})
 
             if path == "/delete":
-                if not delete_action(data.get("no")):
+                if not delete_action(data.get("no"), user):
                     return self.send_json(404, {"ok": False, "error": "Acțiunea nu a fost găsită"})
                 print(f"  - actiune #{data.get('no')} stearsa de {user}")
                 return self.send_json(200, {"ok": True})
@@ -526,6 +524,8 @@ class Handler(BaseHTTPRequestHandler):
                                        data.get("filename"), data.get("contentBase64"))
                 print(f"  @ atasament '{name}' la #{data.get('no')} de {user}")
                 return self.send_json(200, {"ok": True, "filename": name})
+        except sqlite3.Error as e:
+            return self.send_json(500, {"ok": False, "error": f"Baza de date: {e}"})
         except (RuntimeError, ValueError) as e:
             return self.send_json(500, {"ok": False, "error": str(e)})
         except Exception as e:  # noqa: BLE001
@@ -534,19 +534,19 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404, {"ok": False, "error": "Rută necunoscută"})
 
 
+# ---------------------------------------------------------------- import CSV
 def import_pending_csv(csv_path):
     """Importa randurile din pending_new_actions.csv (coada salvata de browser cand serverul nu raspundea)."""
-    keys = {"data adaugare": "dataAdaugare", "sap id rulment": "sapRulment", "descriere rulment": "descRulment",
-            "familie rulment": "familie", "comanda montaj": "comandaMontaj", "client": "client",
-            "sap id component": "sapComponent", "descriere component": "descComponent",
-            "tip component": "tipComponent", "comanda component": "comandaComponent", "qty": "qty",
-            "actiune": "actiune", "tip actiune": "tipActiune", "responsabil": "responsabil",
-            "data planificata": "dataPlanificata", "urgent client": "urgent", "comentarii": "comentarii"}
+    keys = {norm(h): key for _, key, h in COLUMNS}
+    keys.update({"familie": "familie", "urgent": "urgent"})
     with open(csv_path, encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.DictReader(f))
+        sample = f.read(4096)
+        f.seek(0)
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;") if sample else csv.excel
+        rows = list(csv.DictReader(f, dialect=dialect))
     count = 0
     for r in rows:
-        data = {keys[norm(k)]: v for k, v in r.items() if k and norm(k) in keys}
+        data = {keys[norm(k)]: v for k, v in r.items() if k and norm(k) in keys and keys[norm(k)] != "no"}
         if not any(str(v).strip() for v in data.values()):
             continue
         no = add_action(data, "import CSV")
@@ -560,18 +560,18 @@ def import_pending_csv(csv_path):
 def main():
     parser = argparse.ArgumentParser(description=APP_NAME)
     parser.add_argument("--import-csv", metavar="FISIER",
-                        help="importa pending_new_actions.csv in Excel si iese")
+                        help="importa un CSV cu actiuni (ex. pending_new_actions.csv) in baza de date si iese")
     args = parser.parse_args()
-    ensure_workbook()
+    init_db()
     if args.import_csv:
         import_pending_csv(args.import_csv)
         return
     os.makedirs(CFG["attachments_dir"], exist_ok=True)
     httpd = ThreadingHTTPServer((CFG["host"], int(CFG["port"])), Handler)
     print(f"{APP_NAME} ruleaza pe http://{CFG['host']}:{CFG['port']}/")
-    print(f"  Excel:       {CFG['excel_file']}")
-    print(f"  Atasamente:  {CFG['attachments_dir']}")
-    print(f"  Ticker:      {CFG.get('ticker_source') or '(dezactivat)'}")
+    print(f"  Baza de date: {CFG['database']}")
+    print(f"  Atasamente:   {CFG['attachments_dir']}")
+    print(f"  Ticker:       {CFG.get('ticker_source') or '(dezactivat)'}")
     if CFG["pins"] == DEFAULT_CONFIG["pins"]:
         print("  ATENTIE: folosesti codul implicit 1234. Seteaza codurile reale in config.json.")
     try:

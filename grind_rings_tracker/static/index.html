@@ -662,20 +662,19 @@
     </div>
   </div>
 
-  <div class="footer-note">Dashboard actualizat automat din fișierul Excel de pe server &middot; build 2026-08-29-daily-log</div>
+  <div class="footer-note">Dashboard actualizat automat din baza de date de pe server &middot; build 2026-08-29-daily-log</div>
 </div>
 
 <script>
 /* ====== CONFIGURARE ====== */
-const EXCEL_FILE_URL = "http://romhdata03/timkentraining/PD_PO_Action_Tracker.xlsm";
-const SHEET_NAME = "ActionItemsPastDue";
+// Actiunile vin din baza de date a serverului Python (grind_rings_server.py), nu din Excel.
+const EXCEL_FILE_URL = "api/actions";
+const LISTS_API_URL = "api/lists";
 const REFRESH_INTERVAL_MS = 30000;
-// Adresa calculatorului pe care ruleaza Start-ActionListener.ps1 (statia grigob).
-// INLOCUIESTE cu numele sau IP-ul real al acelui calculator (vezi instructiunile).
-const ACTION_LISTENER_URL = "http://10.136.82.208:8791/";
-// Acelasi server care serveste dashboard-ul/xlsm-ul, dar in subfolderul "attachments"
-// (unde ascultatorul salveaza fisierele atasate).
-const ATTACHMENTS_BASE_URL = "http://romhdata03/timkentraining/attachments/";
+// Acelasi server Python care serveste aceasta pagina (port 8092).
+const ACTION_LISTENER_URL = new URL("./", window.location.href).href;
+// Fisierele atasate sunt servite tot de serverul Python.
+const ATTACHMENTS_BASE_URL = new URL("attachments/", window.location.href).href;
 // Identifica acest sistem fata de celalalt (Follow-up) in fata ascultatorului comun.
 const LISTENER_SOURCE = "pastdue";
 /* ========================= */
@@ -985,7 +984,7 @@ async function uploadAttachment(cardKey, file) {
         statusEl.textContent = `Cod incorect. Fișierul nu a fost atașat.`;
       } else {
         statusEl.className = "attach-status error";
-        statusEl.textContent = `Eroare: ${json.error || "necunoscută"}. Verifică dacă Start-ActionListener.ps1 rulează.`;
+        statusEl.textContent = `Eroare: ${json.error || "necunoscută"}. Verifică dacă grind_rings_server.py rulează.`;
       }
     }
   } catch (err) {
@@ -1291,7 +1290,7 @@ const liveDot = document.getElementById("liveDot");
 const refreshBtn = document.getElementById("refreshBtn");
 
 // Mapare intre numele coloanelor din foaia "Lists" si id-ul <datalist> corespunzator din formular.
-// Daca in Excel apare o coloana noua cu unul din aceste nume, se leaga automat, fara alt cod.
+// Listele vin de la server (/api/lists): valorile din config.json + cele deja folosite.
 const LISTS_SHEET_NAME = "Lists";
 const LIST_FIELD_MAP = {
   "tip actiune": "dlTipActiune",
@@ -1303,19 +1302,20 @@ const LIST_FIELD_MAP = {
   "tip component": "dlTipComponent",
 };
 
-function updateFormLists(wb) {
-  const listsSheet = wb.Sheets[LISTS_SHEET_NAME];
-  if (!listsSheet) return;
-  const rows = XLSX.utils.sheet_to_json(listsSheet, { header: 1, defval: "" });
-  if (!rows.length) return;
-  const headers = rows[0];
-  headers.forEach((rawHeader, colIdx) => {
+async function updateFormLists() {
+  let lists;
+  try {
+    const res = await fetch(`${LISTS_API_URL}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return;
+    lists = (await res.json()).lists || {};
+  } catch (e) { return; }
+  Object.keys(lists).forEach((rawHeader) => {
     const key = String(rawHeader || "").trim().toLowerCase();
     const datalistId = LIST_FIELD_MAP[key];
     if (!datalistId) return;
     const values = [];
-    for (let r = 1; r < rows.length; r++) {
-      const v = String(rows[r][colIdx] ?? "").trim();
+    for (const item of lists[rawHeader]) {
+      const v = String(item ?? "").trim();
       if (v && !values.includes(v)) values.push(v);
     }
     const el = document.getElementById(datalistId);
@@ -1327,12 +1327,9 @@ async function loadFromServer(isManual) {  if (isManual) refreshBtn.classList.ad
   try {
     const res = await fetch(`${EXCEL_FILE_URL}?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
-    const buffer = await res.arrayBuffer();
-    const wb = XLSX.read(buffer, { type: "array", cellDates: true });
-    const sheet = wb.Sheets[SHEET_NAME] || wb.Sheets[wb.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-    state.rows = rowsFromSheet(json);
-    updateFormLists(wb);
+    const data = await res.json();
+    state.rows = rowsFromSheet(data.rows || []);
+    updateFormLists();
     errorBanner.style.display = "none";
     liveDot.style.background = "var(--teal)";
     const now = new Date();
@@ -1340,7 +1337,7 @@ async function loadFromServer(isManual) {  if (isManual) refreshBtn.classList.ad
     render();
   } catch (err) {
     liveDot.style.background = "var(--coral)";
-    errorBanner.textContent = `Nu am putut citi "${EXCEL_FILE_URL}" de pe server (${err.message}). Verifică dacă fișierul este în același folder cu acest HTML și dacă pagina este servită prin http(s).`;
+    errorBanner.textContent = `Nu am putut citi acțiunile din baza de date (${err.message}). Verifică dacă grind_rings_server.py rulează.`;
     errorBanner.style.display = "block";
   } finally {
     if (isManual) setTimeout(() => refreshBtn.classList.remove("spinning"), 400);
@@ -1568,7 +1565,7 @@ async function deleteAction(cardKey, label) {
   if (!pin) { alert("Codul este obligatoriu pentru a șterge o acțiune."); return; }
 
   const statusEl = document.getElementById(`attachStatus-${cardKey}`);
-  if (statusEl) { statusEl.className = "attach-status"; statusEl.textContent = "Se șterge… poate dura până la 15-20 secunde."; }
+  if (statusEl) { statusEl.className = "attach-status"; statusEl.textContent = "Se șterge…"; }
 
   try {
     const controller = new AbortController();
@@ -1588,13 +1585,13 @@ async function deleteAction(cardKey, label) {
     } else if (res.status === 403) {
       alert("Cod incorect. Acțiunea nu a fost ștearsă.");
     } else if (res.status === 404) {
-      alert("Nu am găsit această acțiune în Excel (poate a fost deja ștearsă sau modificată).");
+      alert("Nu am găsit această acțiune în baza de date (poate a fost deja ștearsă sau modificată).");
       loadFromServer(false);
     } else {
       alert(`Nu am putut șterge acțiunea: ${json.error || "eroare necunoscută"}`);
     }
   } catch (err) {
-    alert("Nu am putut contacta ascultătorul. Verifică dacă Start-ActionListener.ps1 rulează pe stația configurată.");
+    alert("Nu am putut contacta ascultătorul. Verifică dacă grind_rings_server.py rulează.");
   }
 }
 
@@ -1642,7 +1639,7 @@ async function submitEditAction() {
   const btn = document.getElementById("submitAddActionBtn");
   btn.disabled = true;
   btn.textContent = "Se salvează…";
-  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se scrie în Excel… poate dura până la 15-20 secunde.</div>`;
+  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se salvează în baza de date…</div>`;
 
   try {
     const controller = new AbortController();
@@ -1666,12 +1663,12 @@ async function submitEditAction() {
     } else if (res.status === 403) {
       resultEl.innerHTML = `<div class="modal-result-error">Cod incorect.</div>`;
     } else {
-      resultEl.innerHTML = `<div class="modal-result-error">Eroare: ${json.error || "necunoscută"}. Verifică dacă Start-ActionListener.ps1 rulează.</div>`;
+      resultEl.innerHTML = `<div class="modal-result-error">Eroare: ${json.error || "necunoscută"}. Verifică dacă grind_rings_server.py rulează.</div>`;
     }
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "Salvează modificările";
-    resultEl.innerHTML = `<div class="modal-result-error">Nu am putut contacta ascultătorul. Verifică dacă Start-ActionListener.ps1 rulează pe stația configurată.</div>`;
+    resultEl.innerHTML = `<div class="modal-result-error">Nu am putut contacta ascultătorul. Verifică dacă grind_rings_server.py rulează.</div>`;
   }
 }
 
@@ -1729,14 +1726,14 @@ document.getElementById("submitAddActionBtn").addEventListener("click", async ()
   const btn = document.getElementById("submitAddActionBtn");
   btn.disabled = true;
   btn.textContent = "Se salvează…";
-  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se scrie în Excel… poate dura până la 15-20 secunde (Excel pornește în fundal pe stația grigob).</div>`;
+  resultEl.innerHTML = `<div class="modal-note" style="display:block;">Se salvează în baza de date…</div>`;
 
-  // 1) incearca scrierea IMEDIATA, direct in Excel, prin Start-ActionListener.ps1
+  // 1) salveaza direct in baza de date, prin grind_rings_server.py
   const direct = await tryDirectListener(formFields);
   if (direct.ok) {
     btn.disabled = false;
     btn.textContent = "Salvează acțiunea";
-    resultEl.innerHTML = `<div class="modal-result-ok">Scris direct în Excel! Nr. ${direct.no}. Apare la următoarea reîmprospătare a dashboard-ului (max. 30 secunde).</div>`;
+    resultEl.innerHTML = `<div class="modal-result-ok">Salvat în baza de date! Nr. ${direct.no}.</div>`;
     ["naClient","naResponsabil","naActiune","naTipActiune","naSapRulment","naDescRulment","naFamilie","naComandaMontaj","naSapComponent","naDescComponent","naTipComponent","naComandaComponent","naQty","naComentarii","naPin"].forEach(id => document.getElementById(id).value = "");
     return;
   }
@@ -1748,12 +1745,12 @@ document.getElementById("submitAddActionBtn").addEventListener("click", async ()
   btn.textContent = "Salvează acțiunea";
 
   if (res.ok) {
-    resultEl.innerHTML = `<div class="modal-result-ok">Ascultătorul direct nu a răspuns, dar am salvat în coadă. Va apărea în Excel după rularea Import-PendingActions.ps1.</div>`;
+    resultEl.innerHTML = `<div class="modal-result-ok">Ascultătorul direct nu a răspuns, dar am salvat în coadă. Se importă pe server cu: python grind_rings_server.py --import-csv pending_new_actions.csv</div>`;
     ["naClient","naResponsabil","naActiune","naTipActiune","naSapRulment","naDescRulment","naFamilie","naComandaMontaj","naSapComponent","naDescComponent","naTipComponent","naComandaComponent","naQty","naComentarii","naPin"].forEach(id => document.getElementById(id).value = "");
   } else {
     const csvLine = rowValues.map(csvEscape).join(",");
     resultEl.innerHTML = `
-      <div class="modal-result-error">Nu am putut scrie nici direct, nici în coadă (verifică dacă Start-ActionListener.ps1 rulează pe stația grigob). Copiază rândul de mai jos și lipește-l direct în Excel, sau la finalul „${PENDING_CSV_NAME}":</div>
+      <div class="modal-result-error">Nu am putut scrie nici direct, nici în coadă (verifică dacă grind_rings_server.py rulează). Copiază rândul de mai jos și adaugă-l la finalul „${PENDING_CSV_NAME}":</div>
       <textarea class="modal-fallback-text" id="fallbackCsvLine" rows="3" readonly>${csvLine}</textarea>
       <button type="button" class="modal-btn-primary" id="copyFallbackBtn" style="margin-top:8px;">Copiază rândul</button>`;
     document.getElementById("copyFallbackBtn").addEventListener("click", () => {
@@ -1815,7 +1812,8 @@ loadFromServer(false);
 setInterval(() => loadFromServer(false), REFRESH_INTERVAL_MS);
 
 // ---------- Ticker live, citit direct din Dashboard2026.xlsm ----------
-const TICKER_XLSX_PATH = 'http://romhdata03/timkentraining/Dashboard2026.xlsm';
+// Citit prin serverul Python (proxy), altfel browserul il blocheaza (alt server/port).
+const TICKER_XLSX_PATH = 'data/ticker';
 const TICKER_REFRESH_MINUTES = 5;
 
 // Valori de rezervă, folosite doar dacă fișierul nu poate fi citit

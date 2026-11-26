@@ -5,7 +5,6 @@ cd /d "%~dp0"
 for /f "delims=" %%P in ('where pythonw 2^>nul') do if not defined PYW set "PYW=%%P"
 if not defined PYW for /f "delims=" %%P in ('where python') do if not defined PYW set "PYW=%%P"
 if not defined PYW ( echo Python nu a fost gasit in PATH. & pause & exit /b 1 )
-python -m pip install --quiet openpyxl
 schtasks /Create /F /TN "GrindRingsActionTracker" /SC ONSTART /RU SYSTEM /RL HIGHEST ^
   /TR "\"%PYW%\" \"%~dp0grind_rings_server.py\""
 REM Deschide portul 8092 in firewall
