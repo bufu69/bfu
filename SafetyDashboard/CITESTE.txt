@@ -1,0 +1,71 @@
+﻿SAFETY DASHBOARD
+================
+
+Dashboard EHS (Good Catch, Echipamente nonstandard, Actiuni corective, Incidente)
+cu server propriu, pe portul 8093. Datele sunt intr-o baza de date proprie (safety.db, SQLite)
+si se editeaza direct din pagina. Nu are nevoie de Excel, de internet sau de alt server -
+doar de Python 3 (https://www.python.org/downloads/ , cu bifa "Add python.exe to PATH",
+sau Python "embeddable" pus in folderul dashboard-ului).
+
+  Dashboard:  http://NUME-CALCULATOR:8093/
+
+
+FISIERE
+-------
+server.py                     serverul (pagina, baza de date, import Excel, utilizatori)
+index.html                    dashboard-ul
+fonts\                        fonturile paginii (merge si fara internet)
+CITESTE.txt                   acest fisier
+
+instalare-server.bat / .ps1   INSTALARE: Python, cont administrator, firewall, pornire automata
+actualizare-server.bat / .ps1 ACTUALIZARE la o versiune noua, fara sa atinga datele
+porneste-dashboard.bat        porneste serverul
+reporneste-dashboard.bat      reporneste serverul
+editori.bat                   utilizatori (utilizator + parola) - si din pagina: Setari -> Utilizatori
+import-excel.bat              importa datele din "Dashboard safety.xlsm"
+setup-SafetyDashboard.nsi     script pentru installer .exe (NSIS)
+
+Create automat - NU le sterge:
+safety.db                     BAZA DE DATE
+imagini\                      fotografiile incarcate din Setari -> Imagini
+backups\                      copie zilnica a bazei de date (ultimele 30 de zile)
+server.log                    jurnalul serverului cand ruleaza in fundal
+
+
+INSTALARE
+---------
+1. Copiaza folderul pe calculatorul-server, intr-un folder LOCAL (ex. C:\SafetyDashboard),
+   nu in OneDrive.
+2. Dublu-click pe instalare-server.bat si accepta cererea de Administrator.
+3. Creeaza contul de administrator: in instalare sau la prima deschidere a paginii.
+4. Primele date: Setari -> Import Excel -> alegi "Dashboard safety.xlsm"
+   (sau tragi fisierul peste import-excel.bat).
+5. Gata - serverul porneste singur la fiecare pornire a calculatorului.
+
+
+FOLOSIRE
+--------
+- Oricine din retea VEDE dashboard-ul (ideal pe un TV). Se reimprospateaza singur la 60 de secunde.
+- Pentru editare: "Autentificare" (sus, in bara alba), apoi DETALII -> "+ Adauga" sau click pe
+  un rand (ori pe un echipament din lista) ca sa-l modifici / inchizi / stergi.
+- Casutele colorate din stanga si butoanele DETALII deschid direct lista potrivita
+  (ex. "Good Catch overdue" arata doar cele overdue).
+- Good Catch: Status se calculeaza singur - Overdue cand termenul a ajuns (ca in Excel), Open
+  altfel, Inchis cand bifezi "Inchis". La fel "Scadenta depasita" la echipamente.
+
+SETARI (Autentificare -> butonul cu numele tau)
+------
+- Texte: numele companiei, locatia de sub ceas, sloganurile, textul de pe banda.
+- Imagini: fundal (fotografia halei), imaginea din stanga jos, din dreapta jos, logo.
+  Fara imagini se folosesc ilustratiile implicite.
+- Import Excel: inlocuieste sau adauga datele din "Dashboard safety.xlsm".
+- Utilizatori (administratori): Editor = adauga si modifica datele; Administrator = si setari,
+  utilizatori, import. Ai uitat parola? editori.bat pe calculatorul-server.
+- Istoric: cine a adaugat / modificat / sters si cand.
+- Efecte vizuale: animatiile se pot opri (pe calculatoare mai slabe).
+
+
+SIGURANTA DATELOR
+-----------------
+- Backup zilnic in backups\ si inainte de fiecare import.
+- Restaurare: opreste serverul, copiaza backup-ul peste safety.db, porneste serverul.

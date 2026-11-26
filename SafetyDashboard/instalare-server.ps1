@@ -1,0 +1,113 @@
+﻿# Instalare Safety Dashboard (port 8093)
+#  1. verifica Python 3
+#  2. creeaza baza de date si primul editor
+#  3. deschide portul 8093 in firewall
+#  4. porneste serverul automat la pornirea calculatorului (fara utilizator logat)
+
+$ErrorActionPreference = "Stop"
+$Dir = $PSScriptRoot
+$Task = "SafetyDashboard"
+$Port = 8093
+Set-Location $Dir
+function Pauza { Read-Host "`nApasa Enter pentru a inchide" | Out-Null }
+
+$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $admin) { Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""; exit }
+
+Write-Host "===== Instalare Safety Dashboard =====" -ForegroundColor Cyan
+Write-Host "Folder: $Dir`n"
+
+# 0. Folderul: OneDrive nu e potrivit pentru server (sincronizarea poate strica baza de date,
+#    iar serverul pornit automat, ca SYSTEM, poate sa nu aiba acces la OneDrive)
+if ($Dir -match 'OneDrive') {
+  Write-Host "Folderul este in OneDrive. Pentru server e recomandat un folder local." -ForegroundColor Yellow
+  $r = Read-Host "Il copiez in C:\SafetyDashboard si instalez de acolo? D/N"
+  if ($r -match '^[dDyY]') {
+    $nou = "C:\SafetyDashboard"
+    New-Item -ItemType Directory -Force -Path $nou | Out-Null
+    Copy-Item -Path (Join-Path $Dir "*") -Destination $nou -Recurse -Force
+    Write-Host "Copiat in $nou - continui instalarea de acolo.`n"
+    Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$nou\instalare-server.ps1`""
+    exit
+  }
+}
+
+# 1. Python: intai in folderul dashboard-ului, apoi in PATH, apoi in locurile obisnuite
+function Test-Python($exe) {
+  if (-not $exe -or -not (Test-Path $exe) -or $exe -like '*\WindowsApps\*') { return $false }
+  try { $v = & $exe -c "import sys, sqlite3; print(sys.version_info[0])" 2>$null; return ($v -eq "3") } catch { return $false }
+}
+$candidati = New-Object System.Collections.Generic.List[string]
+# a) in folder (ex. python\python.exe, Python311\python.exe, sau langa server.py)
+Get-ChildItem -Path $Dir -Filter python.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+  Sort-Object { $_.FullName.Length } | ForEach-Object { $candidati.Add($_.FullName) }
+# b) salvat la o instalare anterioara
+$fisPy = Join-Path $Dir "python.txt"
+if (Test-Path $fisPy) { $candidati.Add((Get-Content $fisPy -TotalCount 1).Trim()) }
+# c) PATH (py launcher / python)
+foreach ($c in @("py", "python")) {
+  $cmd = Get-Command $c -ErrorAction SilentlyContinue
+  if (-not $cmd) { continue }
+  try {
+    if ($c -eq "py") { $e = & $cmd.Source -3 -c "import sys; print(sys.executable)" 2>$null }
+    else { $e = & $cmd.Source -c "import sys; print(sys.executable)" 2>$null }
+    if ($e) { $candidati.Add($e.Trim()) }
+  } catch {}
+}
+# d) locuri obisnuite de instalare (si pentru alti utilizatori)
+$tipare = @("$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe", "C:\Users\*\AppData\Local\Programs\Python\Python3*\python.exe",
+            "C:\Program Files\Python3*\python.exe", "C:\Python3*\python.exe", "C:\Program Files (x86)\Python3*\python.exe")
+foreach ($t in $tipare) { Get-ChildItem $t -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | ForEach-Object { $candidati.Add($_.FullName) } }
+
+$py = $null
+foreach ($c in $candidati) { if (Test-Python $c) { $py = $c; break } }
+while (-not $py) {
+  Write-Host "Nu am gasit Python 3." -ForegroundColor Yellow
+  Write-Host "Scrie calea completa catre python.exe (ex. C:\Python312\python.exe)," -ForegroundColor Yellow
+  $r = Read-Host "sau apasa Enter ca sa renunti (si instalezi Python de pe https://www.python.org/downloads/)"
+  if (-not $r) { Pauza; exit 1 }
+  $r = $r.Trim('"')
+  if ((Test-Path $r -PathType Container)) { $r = Join-Path $r "python.exe" }
+  if (Test-Python $r) { $py = $r } else { Write-Host "'$r' nu este un Python 3 functional." -ForegroundColor Red }
+}
+$py = (Resolve-Path $py).Path
+$pyw = Join-Path (Split-Path $py) "pythonw.exe"
+if (-not (Test-Path $pyw)) { $pyw = $py }
+# celelalte .bat-uri (editori, import) folosesc acelasi Python
+Set-Content -Path $fisPy -Value $py -Encoding Default
+Write-Host "Python: $py"
+
+# 2. Baza de date + contul de administrator
+$n = [int](& $py "$Dir\server.py" --numar-utilizatori)
+if ($n -eq 0) {
+  Write-Host "`nNu exista inca niciun cont. Poti crea contul de administrator:" -ForegroundColor Yellow
+  Write-Host "  - acum, aici (utilizator + parola), sau"
+  Write-Host "  - la prima deschidere a dashboard-ului in browser (iti cere singur)."
+  $r = Read-Host "Il creezi acum? D/N"
+  if ($r -match '^[dDyY]') { & $py "$Dir\server.py" --utilizatori }
+} else { Write-Host "Utilizatori: $n (ii gestionezi din pagina - Setari - sau cu editori.bat)" }
+
+# 3. Firewall
+$regula = "Safety Dashboard $Port"
+if (-not (Get-NetFirewallRule -DisplayName $regula -ErrorAction SilentlyContinue)) {
+  New-NetFirewallRule -DisplayName $regula -Direction Inbound -Action Allow -Protocol TCP -LocalPort $Port | Out-Null
+}
+Write-Host "Firewall: portul $Port este deschis."
+
+# 4. Pornire automata
+Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(python|pythonw|py)\.exe$' -and $_.CommandLine -like "*$Dir\server.py*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+Unregister-ScheduledTask -TaskName $Task -Confirm:$false -ErrorAction SilentlyContinue
+$actiune = New-ScheduledTaskAction -Execute $pyw -Argument "`"$Dir\server.py`"" -WorkingDirectory $Dir
+$declansator = New-ScheduledTaskTrigger -AtStartup
+$setari = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$cont = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+Register-ScheduledTask -TaskName $Task -Action $actiune -Trigger $declansator -Settings $setari -Principal $cont -Description "Safety Dashboard (port $Port)" | Out-Null
+Start-ScheduledTask -TaskName $Task
+Write-Host "Serverul porneste singur odata cu calculatorul si ruleaza acum."
+
+Start-Sleep -Seconds 2
+$ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notmatch '^(127|169\.254)\.' } | Select-Object -First 1).IPAddress
+Write-Host "`nGata! Dashboard: http://$($env:COMPUTERNAME):$Port/   sau   http://$($ip):$Port/" -ForegroundColor Green
+Start-Process "http://localhost:$Port/"
+Pauza
