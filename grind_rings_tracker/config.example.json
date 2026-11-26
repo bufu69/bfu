@@ -1,0 +1,13 @@
+{
+  "host": "0.0.0.0",
+  "port": 8092,
+  "excel_file": "Grind_Rings_Action_Tracker.xlsx",
+  "sheet_name": "ActionItems",
+  "lists_sheet_name": "Lists",
+  "attachments_dir": "attachments",
+  "ticker_source": "http://romhdata03/timkentraining/Dashboard2026.xlsm",
+  "pins": {
+    "1234": "Admin"
+  },
+  "max_upload_mb": 25
+}
